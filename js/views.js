@@ -25,6 +25,7 @@ import { strengthView, strengthCard } from './strength.js';
 import { backupView } from './backup.js';
 import { reviewView, reviewDue, reviewCard } from './review.js';
 import { handleMissed } from './coach/reschedule.js';
+import { pushUpcoming } from './plan.js';
 import { canCustomize, customizePanelHtml, mountCustomizePanel } from './customize-ui.js';
 import { suggestToday } from './coach/strength.js';
 import { canMove, moveOptions, movePanelHtml, mountMovePanel } from './move.js';
@@ -249,8 +250,9 @@ export const views = {
   schema: {
     title: 'Schema',
     tab: 'schema',
-    html({ profile, plan, workouts, runs }) {
+    html({ profile, plan, workouts, runs, sync }) {
       if (!profile || !plan) return noGoal();
+      const connected = isConnected(sync);
       const names = ['ma', 'di', 'wo', 'do', 'vr', 'za', 'zo'];
       const todayDate = new Date();
       const today = isoDate(todayDate);
@@ -281,11 +283,18 @@ export const views = {
         .map((wk) => {
           const ws = workouts.filter((w) => w.week === wk.week && w.date >= wk.start && w.date < addDays(wk.start, 7));
           const startText = new Date(`${wk.start}T12:00:00`).toLocaleDateString('nl-BE', { day: 'numeric', month: 'short' });
+          const open = ws.filter((w) => w.status === 'planned' && w.date >= today && !w.test);
+          const onWatch = open.length && open.every((w) => w.pushedAt);
+          const watchRow = connected && open.length
+            ? `<div class="list__row"><span class="field__hint">${onWatch ? '⌚ Staat op je horloge' : `${open.length} ${open.length === 1 ? 'training' : 'trainingen'} nog niet op je horloge`}</span>
+                <button class="btn btn--small${onWatch ? ' btn--secondary' : ''}" type="button" data-push-week="${esc(wk.start)}">${onWatch ? 'Opnieuw' : 'Naar horloge'}</button></div>`
+            : '';
           return `
             <p class="section-label">Week ${wk.week} · ${esc(PHASES[wk.phase].label)}${wk.recovery ? ' · herstelweek' : ''}</p>
             <section class="card card--flush">
               <div class="list__row" style="border-top:0"><span class="field__hint">vanaf ${esc(startText)}</span><span class="list__value">${wk.plannedKm.toLocaleString('nl-BE')} km gepland</span></div>
               <ul class="list" style="border-top:1px solid var(--line)">${ws.map((w) => workoutRow(w, done.has(w.date))).join('')}</ul>
+              ${watchRow}
             </section>`;
         })
         .join('');
@@ -298,7 +307,29 @@ export const views = {
           <div class="phase-bar">${phaseBar}</div>
           <p class="card__text">${esc(current.recovery ? 'Herstelweek: minder volume, zodat je lichaam de training van de vorige weken kan verwerken.' : phase.text)}</p>
         </section>
+        ${connected ? '<button class="btn btn--secondary" type="button" id="push-all">⌚ Volledig schema naar horloge</button>' : ''}
         ${weekCards}`;
+    },
+    mount(root, { plan }) {
+      root.addEventListener('click', async (e) => {
+        const b = e.target.closest('[data-push-week], #push-all');
+        if (!b) return;
+        b.disabled = true;
+        const label = b.textContent;
+        b.textContent = 'Versturen…';
+        try {
+          const range = b.dataset.pushWeek
+            ? { from: b.dataset.pushWeek, to: addDays(b.dataset.pushWeek, 6) }
+            : { from: plan.start, to: plan.goalDate };
+          const r = await pushUpcoming(range);
+          showToast(`${r.count} trainingen verstuurd. Synchroniseer je horloge met Garmin Connect.`);
+          window.dispatchEvent(new HashChangeEvent('hashchange'));
+        } catch (err) {
+          showToast(err.message || 'Versturen lukte niet.');
+          b.disabled = false;
+          b.textContent = label;
+        }
+      });
     },
   },
 

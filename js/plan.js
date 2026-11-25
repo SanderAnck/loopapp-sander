@@ -46,24 +46,39 @@ export async function regeneratePlan(profile) {
   return { plan, workouts, stale };
 }
 
-/** Put the next 14 days on the watch and remove workouts that were dropped. */
-export async function pushUpcoming({ stale = [] } = {}) {
+/** How far ahead Pace keeps the watch filled: 7, 14 days or 'all' (whole plan). */
+export const WATCH_WINDOWS = { 7: '1 week', 14: '2 weken', all: 'Volledig schema' };
+
+const addDaysIso = (iso, n) => {
+  const d = new Date(`${iso}T12:00:00`);
+  d.setDate(d.getDate() + n);
+  return isoDate(d);
+};
+
+/**
+ * Put planned workouts on the watch and remove the ones that were dropped.
+ * Without from/to it uses the window from the settings. Workouts that were
+ * already sent before are always updated too, so the watch never shows an
+ * old version.
+ */
+export async function pushUpcoming({ stale = [], from = null, to = null } = {}) {
   const provider = await activeProvider();
   if (!provider.canPushWorkouts) return { ok: true, count: 0, skipped: true };
-  const today = new Date();
-  const until = new Date();
-  until.setDate(until.getDate() + WATCH_WINDOW_DAYS);
-  const from = isoDate(today);
-  const to = isoDate(until);
-  const { workouts } = await loadPlan();
-  const upcoming = workouts.filter((w) => w.date >= from && w.date <= to && w.status === 'planned');
+  const s = await loadSyncSettings();
+  const { plan, workouts } = await loadPlan();
+  const today = isoDate(new Date());
+  const win = s.watchWindow ?? WATCH_WINDOW_DAYS;
+  const start = from && from > today ? from : today;
+  const end = to || (win === 'all' ? plan?.goalDate || addDaysIso(today, 365) : addDaysIso(today, Number(win)));
+  const upcoming = workouts.filter(
+    (w) => w.status === 'planned' && !w.test && w.date >= today && ((w.date >= start && w.date <= end) || w.pushedAt)
+  );
   if (stale.length) await provider.deleteWorkouts(stale);
   const result = await provider.pushWorkouts(upcoming);
   const now = new Date().toISOString();
   for (const w of upcoming) await db.put('workouts', { ...w, pushedAt: now });
-  const s = await loadSyncSettings();
-  await saveSyncSettings({ ...s, lastPushAt: now });
-  return result;
+  await saveSyncSettings({ ...(await loadSyncSettings()), lastPushAt: now });
+  return { ...result, count: upcoming.length };
 }
 
 /** Make sure a plan exists and the watch window is fresh (at most once per 6 hours). */

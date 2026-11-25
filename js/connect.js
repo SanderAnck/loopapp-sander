@@ -6,6 +6,7 @@ import { db } from './db.js';
 import { isoDate, formatRaceTime } from './profile.js';
 import { loadSyncSettings, saveSyncSettings, syncActivities } from './sync/provider.js';
 import { IntervalsProvider } from './sync/intervals.js';
+import { pushUpcoming, WATCH_WINDOWS } from './plan.js';
 
 /** Small structured workout to prove the whole chain works (about 16 minutes). */
 export function testWorkout(date) {
@@ -55,6 +56,19 @@ function connectedHtml(settings) {
       <div class="card__eyebrow"><span class="badge badge--good">● Verbonden</span></div>
       <h2 class="card__title">Intervals.icu${settings.athleteName ? ` · ${esc(settings.athleteName)}` : ''}</h2>
       <p class="card__text">Pace zet trainingen in je Intervals.icu-kalender. Die gaan via Garmin Connect naar je Venu 3. Je lopen komen langs dezelfde weg terug.</p>
+    </section>
+
+    <p class="section-label">Trainingen op je horloge</p>
+    <section class="card">
+      <div class="field" style="margin-top:0">
+        <span class="field__label">Hoe ver vooruit?</span>
+        <div class="seg">${Object.entries(WATCH_WINDOWS)
+          .map(([k, label]) => `<button type="button" data-window="${k}" aria-pressed="${String(settings.watchWindow ?? 14) === k}">${label}</button>`)
+          .join('')}</div>
+        <span class="field__hint">Pace houdt deze periode automatisch bij op je horloge. Je kan in Schema ook een losse week versturen.</span>
+      </div>
+      <p class="card__text">Laatst verstuurd: <strong>${esc(settings.lastPushAt ? new Date(settings.lastPushAt).toLocaleString('nl-BE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'nog niet')}</strong></p>
+      <button class="btn" type="button" id="push-now" style="margin-top:12px">Nu synchroniseren</button>
     </section>
 
     <p class="section-label">Testen</p>
@@ -134,6 +148,34 @@ export const connectView = {
         await saveSyncSettings({ ...sync, provider: 'intervals', apiKey: key, athleteName: result.athleteName || '' });
         showToast('Verbonden met Intervals.icu');
         syncActivities().catch(() => {}).finally(() => window.dispatchEvent(new HashChangeEvent('hashchange')));
+      }
+
+      if (btn.dataset.window) {
+        const v = btn.dataset.window === 'all' ? 'all' : Number(btn.dataset.window);
+        for (const b of btn.parentElement.children) b.setAttribute('aria-pressed', String(b === btn));
+        await saveSyncSettings({ ...(await loadSyncSettings()), watchWindow: v });
+        btn.disabled = true;
+        try {
+          const r = await pushUpcoming();
+          showToast(`${r.count} trainingen op je horloge gezet.`);
+        } catch (err) {
+          showToast(err.message);
+        }
+        btn.disabled = false;
+        window.dispatchEvent(new HashChangeEvent('hashchange'));
+        return;
+      }
+
+      if (btn.id === 'push-now') {
+        busy('Synchroniseren…');
+        try {
+          const r = await pushUpcoming();
+          showToast(`${r.count} trainingen verstuurd. Synchroniseer je horloge met Garmin Connect.`);
+        } catch (err) {
+          showToast(err.message);
+        }
+        done();
+        window.dispatchEvent(new HashChangeEvent('hashchange'));
       }
 
       if (btn.id === 'push-test') {
