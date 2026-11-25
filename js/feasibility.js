@@ -25,7 +25,7 @@ function easierOptions(profile, analysis) {
   const out = [];
   const target = 0.75; // the "realistic" border
   const weeksNeeded = Math.ceil(f.gain / (f.capacity * target));
-  if (weeksNeeded > analysis.weeks) out.push(`een doeldatum ${weeksNeeded - analysis.weeks} weken later`);
+  if (weeksNeeded > analysis.weeks) out.push(`een doeldatum ${weeksNeeded - analysis.weeks} ${weeksNeeded - analysis.weeks === 1 ? 'week' : 'weken'} later`);
   if (days < 4) {
     const more = goalFeasibility({ currentVdot: analysis.currentVdot, goalVdot: analysis.goalVdot, weeks: analysis.weeks, daysPerWeek: days + 1 });
     if (more.level !== f.level) out.push(`${days + 1} trainingsdagen per week (dan: ${FEASIBILITY_TEXT[more.level][0].toLowerCase()})`);
@@ -95,6 +95,6 @@ export function feasibilityCard(profile, analysis, workouts = [], { compact = fa
       }</p>
       ${optionsHtml}
       ${consistencyHtml}
-      <p class="field__hint">De voorspelling komt uit je huidige niveau (VDOT). Zodra je lopen binnenkomen, stuurt de coach je tempo's bij.</p>
+      <p class="field__hint">De voorspelling komt uit je startniveau en de lopen die je invult of die van je horloge binnenkomen. Ze wordt na elke loop bijgewerkt.</p>
     </section>`;
 }

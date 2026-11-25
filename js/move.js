@@ -9,7 +9,7 @@ import { pushUpcoming } from './plan.js';
 import { esc, showToast } from './ui.js';
 
 const MOVE_WINDOW_DAYS = 14;
-const ACTIVE = (w) => !['cancelled', 'skipped'].includes(w.status);
+const ACTIVE = (w) => !['cancelled', 'skipped', 'missed'].includes(w.status);
 const isHard = (w) => HARD_TYPES.has(w.type);
 
 const addDays = (iso, n) => {

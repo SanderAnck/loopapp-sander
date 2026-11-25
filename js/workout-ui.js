@@ -56,6 +56,8 @@ export function stepList(workout) {
 export function statusBadge(workout, { done, connected }) {
   if (done || workout.status === 'done') return '<span class="badge badge--good">✓ Gedaan</span>';
   if (workout.status === 'cancelled') return '<span class="badge">Rustdag (coach)</span>';
+  if (workout.status === 'missed') return '<span class="badge">Gemist</span>';
+  if (workout.rescheduled && workout.status === 'planned') return '<span class="badge badge--accent">Ingehaald</span>';
   if (connected && workout.pushedAt) return '<span class="badge badge--accent">⌚ Staat op horloge</span>';
   return '';
 }
@@ -88,7 +90,7 @@ export function dayLabel(iso) {
   return d.toLocaleDateString('nl-BE', { weekday: 'long', day: 'numeric', month: 'long' });
 }
 
-const STATUS_TEXT = { done: '✓ ', partial: '◐ ', aborted: '✕ ', skipped: 'overgeslagen · ', cancelled: 'rust (coach) · ' };
+const STATUS_TEXT = { done: '✓ ', partial: '◐ ', aborted: '✕ ', skipped: 'overgeslagen · ', missed: 'gemist · ', cancelled: 'rust (coach) · ' };
 
 export function workoutRow(w, done) {
   const d = new Date(`${w.date}T12:00:00`).toLocaleDateString('nl-BE', { weekday: 'short', day: 'numeric', month: 'short' });

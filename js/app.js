@@ -10,6 +10,9 @@ import { seedTestWorkout } from './test-seed.js';
 import { loadHr, saveHr, hrZones } from './coach/hr.js';
 import { IntervalsProvider } from './sync/intervals.js';
 import { setZoneContext } from './workout-ui.js';
+import { computeFitness, applyFitnessCorrection } from './fitness-service.js';
+import { loadStrength } from './coach/strength.js';
+import { handleMissed } from './coach/reschedule.js';
 
 const DEFAULT_ROUTE = 'vandaag';
 const viewEl = document.getElementById('view');
@@ -27,18 +30,21 @@ async function render() {
   const route = currentRoute();
   const view = views[route];
 
-  const [profile, sync, runs, { plan, workouts }, hr] = await Promise.all([
+  const [profile, sync, runs, { plan, workouts }, hr, checkins, strength] = await Promise.all([
     loadProfile(),
     loadSyncSettings(),
     db.getAll('runs'),
     loadPlan(),
     loadHr(),
+    db.getAll('checkins'),
+    loadStrength(),
   ]);
   if (id !== renderId) return; // a newer navigation started meanwhile
-  const analysis = profile ? analyse(profile) : null;
   const hrz = hrZones(hr);
+  const fitness = computeFitness({ profile, plan, runs, checkins, hrz });
+  const analysis = profile ? analyse(profile, fitness?.vdot) : null;
   setZoneContext(analysis ? { paceZones: analysis.zones, hrz } : null);
-  const ctx = { profile, analysis, sync, runs, plan, workouts, hr, hrz };
+  const ctx = { profile, analysis, sync, runs, plan, workouts, hr, hrz, checkins, fitness, strength };
 
   titleEl.textContent = view.title;
   document.title = `${view.title} · Pace`;
@@ -130,6 +136,10 @@ async function autoSync() {
       changed = true;
       pushUpcoming().catch((err) => console.warn('Push failed', err));
     }
+    if (await applyFitnessCorrection()) changed = true;
+    // Planned workouts that stayed unlogged for 2 days count as missed.
+    const data = await loadPlan();
+    if ((await handleMissed({ workouts: data.workouts, runs: await db.getAll('runs'), plan: data.plan })).length) changed = true;
     if (changed) render();
   } catch (err) {
     console.warn('Plan update failed', err);
@@ -151,6 +161,7 @@ async function autoSync() {
   if (s.lastSyncAt && Date.now() - new Date(s.lastSyncAt) < 15 * 60 * 1000) return;
   try {
     const n = await syncActivities();
+    if (n) await applyFitnessCorrection();
     if (n && currentRoute() !== 'doel') render();
   } catch (err) {
     console.warn('Sync failed', err);

@@ -21,8 +21,17 @@ import { db } from './db.js';
 import { activeProvider } from './sync/provider.js';
 import { showToast } from './ui.js';
 import { heartRateView } from './heartrate.js';
+import { strengthView, strengthCard } from './strength.js';
+import { backupView } from './backup.js';
+import { reviewView, reviewDue, reviewCard } from './review.js';
+import { handleMissed } from './coach/reschedule.js';
+import { suggestToday } from './coach/strength.js';
 import { canMove, moveOptions, movePanelHtml, mountMovePanel } from './move.js';
 import { feasibilityCard, consistency } from './feasibility.js';
+import { predictionChart, weeklyKmChart, mountCharts } from './charts.js';
+import { fitnessSeries, expectedVdot } from './coach/fitness.js';
+import { predictRaceTime } from './coach/vdot.js';
+import { goalDistanceM } from './profile.js';
 
 const ICON_CALENDAR =
   '<svg class="empty__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>';
@@ -77,11 +86,62 @@ function noGoal() {
     </section>`;
 }
 
+/** Fitness card + charts for Voortgang. */
+function progressCharts({ profile, plan, runs, fitness }) {
+  const today = isoDate(new Date());
+  const distanceM = goalDistanceM(profile);
+  const hasTime = profile.goal.mode === 'time' && profile.goal.targetTimeS && distanceM;
+  const vd = (v) => v.toFixed(1).replace('.', ',');
+  const diff = fitness.vdot - fitness.baseline;
+  const basis = fitness.samples
+    ? `Gebaseerd op ${fitness.samples} ${fitness.samples === 1 ? 'loop' : 'lopen'} (tempo met ${fitness.lastMethod === 'hartslag' ? 'hartslag' : 'je gevoel'}) en je startniveau.`
+    : 'Nog op basis van je startniveau. Na elke loop met tempo en hartslag of gevoel schat de coach je fitheid opnieuw.';
+  const behind = fitness.expected != null ? fitness.vdot - fitness.expected : 0;
+  const status = fitness.recentSamples < 3
+    ? ''
+    : behind > 0.3
+      ? ' Je ligt voor op je plan: de coach maakt je tempo\'s iets sneller.'
+      : behind < -0.3
+        ? ' Je ligt wat achter op je plan: de coach houdt je tempo\'s iets rustiger.'
+        : ' Je ligt mooi op schema.';
+  const fitCard = `
+    <section class="card">
+      <div class="card__eyebrow">Je fitheid</div>
+      <div class="stats">
+        <div><div class="stat__value">${vd(fitness.vdot)}</div><div class="stat__label">VDOT nu</div></div>
+        <div><div class="stat__value">${diff >= 0 ? '+' : '−'}${vd(Math.abs(diff))}</div><div class="stat__label">Sinds start</div></div>
+        <div><div class="stat__value">${fitness.expected != null ? vd(fitness.expected) : '–'}</div><div class="stat__label">Plan verwacht</div></div>
+      </div>
+      <p class="card__text">${esc(basis)}${esc(status)}</p>
+    </section>`;
+
+  let pred = '';
+  if (hasTime) {
+    const points = fitnessSeries(fitness, today).map((p) => ({ date: p.date, timeS: predictRaceTime(p.vdot, distanceM) }));
+    const planPts = [];
+    for (let d = plan.start; d <= profile.goal.date; d = addDays(d, 7)) planPts.push({ date: d, timeS: predictRaceTime(expectedVdot(plan, d), distanceM) });
+    planPts.push({ date: profile.goal.date, timeS: predictRaceTime(expectedVdot(plan, profile.goal.date), distanceM) });
+    pred = `<p class="section-label">Voorspelde eindtijd</p><section class="card">${predictionChart({ points, plan: planPts, goalS: profile.goal.targetTimeS, goalDate: profile.goal.date, distanceKm: distanceM / 1000 })}</section>`;
+  }
+
+  const currentIdx = Math.max(0, plan.weeks.findIndex((wk) => wk.start <= today && today < addDays(wk.start, 7)));
+  const from = Math.max(0, currentIdx - 7);
+  const weeks = plan.weeks.slice(from, currentIdx + 3).map((wk) => ({
+    label: wk.week,
+    start: wk.start,
+    plannedKm: wk.plannedKm,
+    current: wk.start <= today && today < addDays(wk.start, 7),
+    doneKm: runs.filter((r) => r.distanceM && r.date >= wk.start && r.date < addDays(wk.start, 7)).reduce((a, r) => a + r.distanceM / 1000, 0),
+  }));
+  const km = `<p class="section-label">Kilometers per week</p><section class="card">${weeklyKmChart(weeks)}</section>`;
+  return fitCard + pred + km;
+}
+
 export const views = {
   vandaag: {
     title: 'Vandaag',
     tab: 'vandaag',
-    html({ profile, analysis, workouts, runs, sync }) {
+    html({ profile, analysis, workouts, runs, sync, strength }) {
       const date = new Date().toLocaleDateString('nl-BE', { weekday: 'long', day: 'numeric', month: 'long' });
       if (!profile) return `${installHint()}<p class="section-label">${esc(date)}</p>${noGoal()}`;
       const today = isoDate(new Date());
@@ -106,6 +166,15 @@ export const views = {
           <p class="card__text">Vul de vragenlijst in, dan stuurt de coach je schema bij.</p>
           <a class="btn" href="#/invoer/${esc(w.id)}" style="margin-top:12px">Vragenlijst invullen</a></section>`)
         .join('');
+      // Planned workouts of the last 2 days without a run: ask what happened.
+      const unlogged = workouts.filter((w) => w.date < today && w.date >= addDays(today, -2) && w.status === 'planned' && !w.test && !done.has(w.date));
+      const unloggedCards = unlogged
+        .map((w) => `<section class="card"><div class="card__eyebrow">${esc(dayLabel(w.date))}</div>
+          <h2 class="card__title">Heb je je ${esc(w.name.toLowerCase())} gelopen?</h2>
+          <p class="card__text">Vul je loop in, of laat de coach weten dat het niet lukte. Een belangrijke training wordt dan later deze week ingepland.</p>
+          <div class="btn-row"><button class="btn btn--secondary" type="button" data-missed="${esc(w.id)}">Niet gelopen</button>
+          <a class="btn" href="#/invoer/${esc(w.id)}">Invullen</a></div></section>`)
+        .join('');
       // A run on this date only counts for a workout when no other workout of
       // today was already linked to a run through the questionnaire.
       const finished = (w) => ['done', 'partial', 'aborted'].includes(w.status);
@@ -123,6 +192,7 @@ export const views = {
             <h2 class="card__title">Vandaag geen training</h2>
             <p class="card__text">Rust hoort bij het schema: daar word je sterker van.${next ? ` Volgende training: <strong>${esc(dayLabel(next.date).toLowerCase())}</strong>.` : ''}</p>
           </section>
+          ${strengthCard(strength, { suggested: suggestToday(strength, true) })}
           ${next ? workoutCard(next, { done: false, connected: isConnected(sync), heading: `Volgende · ${dayLabel(next.date)}`, actions: canMove(next) ? `<a class="btn btn--secondary" href="#/training/${esc(next.id)}/verplaats" style="margin-top:12px">Andere dag kiezen</a>` : '' }) : ''}`;
       }
       const watchHint =
@@ -131,15 +201,30 @@ export const views = {
           : '';
       return `
         ${installHint()}
+        <div id="review-slot"></div>
         ${pendingCards}
+        ${unloggedCards}
         <p class="section-label">${esc(date)}</p>
         ${main}
         ${watchHint}
         ${goalCard(profile, analysis)}
         ${feasibilityCard(profile, analysis, workouts, { compact: true })}`;
     },
-    mount(root) {
+    async mount(root, { plan, workouts, runs }) {
+      reviewDue(plan).then((wk) => {
+        const slot = root.querySelector('#review-slot');
+        if (slot && wk) slot.innerHTML = reviewCard(wk);
+      });
       root.addEventListener('click', async (e) => {
+        const m = e.target.closest('[data-missed]');
+        if (m) {
+          m.disabled = true;
+          const [r] = await handleMissed({ workouts, runs, plan, ids: [m.dataset.missed] });
+          const day = r?.to ? new Date(`${r.to}T12:00:00`).toLocaleDateString('nl-BE', { weekday: 'long', day: 'numeric', month: 'long' }) : '';
+          showToast(r?.action === 'moved' ? `Geen probleem. De training staat nu op ${day}.` : 'Geen probleem. Niet inhalen: je schema loopt gewoon verder.');
+          window.dispatchEvent(new HashChangeEvent('hashchange'));
+          return;
+        }
         const b = e.target.closest('[data-skip]');
         if (!b) return;
         const w = await db.get('workouts', b.dataset.skip);
@@ -222,13 +307,14 @@ export const views = {
       if (!w) return `<section class="card empty"><h2 class="empty__title">Training niet gevonden</h2><a class="btn" href="#/schema">Naar je schema</a></section>`;
       const done = runDates(runs).has(w.date);
       const moved = w.movedFrom && w.movedFrom !== w.date ? `<p class="card__text">Verplaatst van ${esc(dayLabel(w.movedFrom).toLowerCase())}.</p>` : '';
+      const late = w.status === 'missed' ? `<a class="btn btn--secondary" href="#/invoer/${esc(w.id)}" style="margin-top:12px">Toch gelopen? Invullen</a>` : '';
       const move = canMove(w)
         ? `<button class="btn btn--secondary" type="button" id="move-open" style="margin-top:12px">Andere dag kiezen</button><div id="move-panel" hidden style="margin-top:16px"></div>`
         : '';
       return `
         <a class="btn btn--ghost" href="#/schema" style="justify-content:flex-start;padding:0 4px;width:auto">‹ Schema</a>
         <p class="section-label">${esc(dayLabel(w.date))}</p>
-        ${workoutCard(w, { done, connected: isConnected(sync), actions: moved + move })}
+        ${workoutCard(w, { done, connected: isConnected(sync), actions: moved + late + move })}
         ${whyCard(w)}`;
     },
     mount(root, { workouts, plan }) {
@@ -275,7 +361,8 @@ export const views = {
   voortgang: {
     title: 'Voortgang',
     tab: 'voortgang',
-    html({ profile, analysis, runs, workouts }) {
+    html({ profile, analysis, runs: allRuns, workouts, plan, fitness }) {
+      const runs = allRuns.filter((r) => !r.test);
       const cons = consistency(workouts);
       const predicted = analysis?.predictedNowS ? formatRaceTime(analysis.predictedNowS) : '–';
       const monday = new Date();
@@ -285,6 +372,7 @@ export const views = {
         .filter((r) => r.distanceM && new Date(`${r.date}T12:00:00`) >= monday)
         .reduce((sum, r) => sum + r.distanceM / 1000, 0);
       const weekKmText = runs.length ? weekKm.toLocaleString('nl-BE', { maximumFractionDigits: 1 }) : '–';
+      const charts = profile && plan && fitness ? progressCharts({ profile, plan, runs, fitness }) : '';
       return `
         <section class="card">
           <div class="card__eyebrow">Richting je doel</div>
@@ -294,17 +382,22 @@ export const views = {
             <div><div class="stat__value">${cons ? `${Math.round(cons.ratio * 100)}<span class="stat__unit">%</span>` : '–'}</div><div class="stat__label">Consistentie</div></div>
           </div>
         </section>
+        ${plan ? '<a class="btn btn--secondary" href="#/week">Weekoverzicht</a>' : ''}
+        ${charts}
         ${profile ? `<p class="section-label">Haalbaarheid van je doel</p>${feasibilityCard(profile, analysis, workouts)}` : ''}
         ${runs.length ? '' : `<section class="card empty">
           ${ICON_CHART}
           <h2 class="empty__title">Nog geen lopen</h2>
-          <p class="empty__text">Na je eerste loop zie je hier je volume en geschatte eindtijd.</p>
+          <p class="empty__text">Na je eerste loop zie je hier je volume en hoe je fitheid groeit.</p>
         </section>`}
         ${runs.length ? `<p class="section-label">Laatste lopen</p><section class="card card--flush"><ul class="list">${[...runs]
           .sort((a, b) => (a.date < b.date ? 1 : -1))
           .slice(0, 5)
           .map(runListRow)
           .join('')}</ul></section>` : ''}`;
+    },
+    mount(root) {
+      mountCharts(root);
     },
   },
 
@@ -345,6 +438,8 @@ export const views = {
           </section>
           <section class="card card--flush">
             <ul class="list">
+              <li class="list__row"><a href="#/kracht" style="color:inherit;display:flex;justify-content:space-between;width:100%">
+                <span>Kniecircuit</span><span class="list__value">Openen ›</span></a></li>
               <li class="list__row"><a href="#/hartslag" style="color:inherit;display:flex;justify-content:space-between;width:100%">
                 <span>Hartslag</span><span class="list__value">${hrz ? `max. ${hrz.max} bpm${hrz.estimated ? ' (schatting)' : ''} ›` : 'Instellen ›'}</span></a></li>
             </ul>
@@ -378,7 +473,8 @@ export const views = {
           <ul class="list">
             <li class="list__row"><span>Weergave</span><span class="list__value">${mode} (volgt iPhone)</span></li>
             <li class="list__row"><span>Geïnstalleerd</span><span class="list__value">${isStandalone() ? 'Ja' : 'Nee, open in Safari'}</span></li>
-            <li class="list__row"><span>Gegevens</span><span class="list__value">Alleen op dit toestel</span></li>
+            <li class="list__row"><a href="#/backup" style="color:inherit;display:flex;justify-content:space-between;width:100%">
+              <span>Back-up</span><span class="list__value">Gegevens bewaren ›</span></a></li>
             <li class="list__row"><span>Versie</span><span class="list__value">${esc(self.PACE_VERSION)}</span></li>
           </ul>
         </section>
@@ -394,4 +490,7 @@ export const views = {
   invoer: entryView,
   resultaat: resultView,
   hartslag: heartRateView,
+  kracht: strengthView,
+  backup: backupView,
+  week: reviewView,
 };

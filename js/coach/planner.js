@@ -597,6 +597,8 @@ export function generatePlan(profile, { today = new Date(), goalDistanceM, level
       goalDate: profile.goal.date,
       weeks: planWeeks,
       startVdot: currentVdot,
+      vdotPerWeek: gain / trainWeeks,
+      trainWeeks,
       challenge,
       peakKm: Math.round(peakKm),
     },

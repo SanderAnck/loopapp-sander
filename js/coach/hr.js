@@ -52,7 +52,7 @@ export function hrZones(hr) {
     const high = bpm(hi);
     zones[key] = { low, high, garmin: [garminZone(low / max.value), garminZone(high / max.value)] };
   }
-  return { zones, max: max.value, estimated: max.estimated, karvonen: Boolean(rest) };
+  return { zones, max: max.value, rest, estimated: max.estimated, karvonen: Boolean(rest) };
 }
 
 export const garminText = ([a, b]) => (a === b ? `Garmin zone ${a}` : `Garmin zone ${a}–${b}`);

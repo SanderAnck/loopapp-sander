@@ -127,12 +127,15 @@ export function formatRaceTime(totalS) {
 }
 
 /** Everything derived from the profile that screens need. */
-export function analyse(profile) {
-  const currentVdot = vdotFromRace(levelDistanceM(profile), profile.level.timeS);
+/** Goal analysis. `fitnessVdot` (from logged runs) replaces the entered level when given. */
+export function analyse(profile, fitnessVdot = null) {
+  const startVdot = vdotFromRace(levelDistanceM(profile), profile.level.timeS);
+  const currentVdot = fitnessVdot ?? startVdot;
   const distanceM = goalDistanceM(profile);
   const weeks = weeksUntil(profile.goal.date);
   const result = {
     currentVdot,
+    startVdot,
     zones: paceZones(currentVdot),
     weeks,
     predictedNowS: distanceM ? predictRaceTime(currentVdot, distanceM) : null,

@@ -10,6 +10,10 @@ import { totalDurationS } from './sync/workout-text.js';
 import { activeProvider } from './sync/provider.js';
 import { pushUpcoming } from './plan.js';
 import { dayLabel } from './workout-ui.js';
+import { applyFitnessCorrection, computeFitness } from './fitness-service.js';
+import { loadHr, hrZones } from './coach/hr.js';
+import { goalDistanceM } from './profile.js';
+import { predictRaceTime } from './coach/vdot.js';
 
 const PAIN_PLACES = ['Knie links', 'Knie rechts', 'Kuit', 'Scheen', 'Voet', 'Heup', 'Anders'];
 const RESULT_BADGE = {
@@ -272,6 +276,14 @@ async function saveCheckin(f) {
   }
 
   await db.put('checkins', checkin);
+  if (!checkin.test) {
+    try {
+      const shift = await applyFitnessCorrection();
+      if (shift) await db.put('checkins', { ...checkin, fitnessShiftS: shift });
+    } catch (err) {
+      console.warn('Fitness update failed', err);
+    }
+  }
 
   // Keep the watch in step (silently skipped without a connection).
   try {
@@ -332,6 +344,17 @@ export const resultView = {
           </section>`;
       })
       .join('');
+    // Fitness after this run.
+    let fitnessCard = '';
+    const [profile, plan, runs, checkins, hr] = await Promise.all([db.get('profile', 'me'), db.get('plan', 'current'), db.getAll('runs'), db.getAll('checkins'), loadHr()]);
+    const fit = profile ? computeFitness({ profile, plan, runs, checkins, hrz: hrZones(hr) }) : null;
+    if (fit && !checkin.test) {
+      const predicted = goalDistanceM(profile) ? formatRaceTime(predictRaceTime(fit.vdot, goalDistanceM(profile))) : null;
+      const shift = checkin.fitnessShiftS;
+      fitnessCard = `<section class="card"><div class="card__eyebrow">Je fitheid</div>
+        <p class="card__text" style="margin-top:0">Fitheid nu: <strong>VDOT ${fit.vdot.toFixed(1).replace('.', ',')}</strong>${predicted ? `, voorspelde eindtijd <strong>${predicted}</strong>` : ''}.
+        ${shift ? ` Je tempo's voor de komende trainingen zijn ${Math.abs(shift)} s/km ${shift < 0 ? 'sneller' : 'trager'} gezet.` : ''}</p></section>`;
+    }
     const msgCards = (checkin.messages || [])
       .map((m) => `<section class="card"><div class="note note--ambitious">${esc(m)}</div></section>`)
       .join('');
@@ -350,6 +373,7 @@ export const resultView = {
       ${checkin.test ? '<section class="card"><div class="note note--ambitious"><strong>Testtraining</strong>Bij een echte training zou de coach het volgende doen. Je echte schema blijft nu ongewijzigd.</div></section>' : ''}
       ${adjCards || '<section class="card"><div class="note note--realistic"><strong>Alles volgens plan</strong>Je schema blijft zoals het is. Goed bezig!</div></section>'}
       ${msgCards}
+      ${fitnessCard}
       ${checkin.test ? '<button class="btn btn--secondary" type="button" id="retest" style="margin-bottom:12px">Opnieuw testen met andere antwoorden</button>' : ''}
       <a class="btn" href="#/vandaag">Klaar</a>`;
 
