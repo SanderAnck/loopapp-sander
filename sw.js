@@ -26,6 +26,8 @@ const SHELL = [
   'js/coach/adapt.js',
   'js/entry.js',
   'js/reset.js',
+  'js/coach/customize.js',
+  'js/customize-ui.js',
   'js/coach/hr.js',
   'js/heartrate.js',
   'js/move.js',

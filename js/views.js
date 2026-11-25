@@ -25,6 +25,7 @@ import { strengthView, strengthCard } from './strength.js';
 import { backupView } from './backup.js';
 import { reviewView, reviewDue, reviewCard } from './review.js';
 import { handleMissed } from './coach/reschedule.js';
+import { canCustomize, customizePanelHtml, mountCustomizePanel } from './customize-ui.js';
 import { suggestToday } from './coach/strength.js';
 import { canMove, moveOptions, movePanelHtml, mountMovePanel } from './move.js';
 import { feasibilityCard, consistency } from './feasibility.js';
@@ -156,7 +157,10 @@ export const views = {
         return `<div class="btn-row">
           <button class="btn btn--secondary" type="button" data-skip="${esc(w.id)}">Overslaan</button>
           <a class="btn" href="#/invoer/${esc(w.id)}">Loop invoeren</a></div>
-          ${canMove(w) ? `<a class="btn btn--ghost" href="#/training/${esc(w.id)}/verplaats">Andere dag kiezen</a>` : ''}`;
+          <div class="btn-row" style="margin-top:4px">
+            ${canCustomize(w) ? `<a class="btn btn--ghost" href="#/training/${esc(w.id)}/aanpassen">Pimp training</a>` : ''}
+            ${canMove(w) ? `<a class="btn btn--ghost" href="#/training/${esc(w.id)}/verplaats">Andere dag</a>` : ''}
+          </div>`;
       };
       // Runs that came in from the watch but have no questionnaire yet.
       const pending = workouts.filter((w) => w.date < today && w.status === 'planned' && done.has(w.date));
@@ -311,15 +315,32 @@ export const views = {
       const move = canMove(w)
         ? `<button class="btn btn--secondary" type="button" id="move-open" style="margin-top:12px">Andere dag kiezen</button><div id="move-panel" hidden style="margin-top:16px"></div>`
         : '';
+      const pimp = canCustomize(w)
+        ? `<button class="btn" type="button" id="cz-open" style="margin-top:12px">Pimp deze training</button>`
+        : '';
       return `
         <a class="btn btn--ghost" href="#/schema" style="justify-content:flex-start;padding:0 4px;width:auto">‹ Schema</a>
         <p class="section-label">${esc(dayLabel(w.date))}</p>
-        ${workoutCard(w, { done, connected: isConnected(sync), actions: moved + late + move })}
+        ${workoutCard(w, { done, connected: isConnected(sync), actions: moved + late + pimp + move })}
+        ${canCustomize(w) ? '<section class="card" id="cz-panel" hidden></section>' : ''}
         ${whyCard(w)}`;
     },
-    mount(root, { workouts, plan }) {
+    mount(root, { workouts, plan, checkins, analysis, runs }) {
       const [, , id, sub] = location.hash.split('/');
       const w = workouts.find((x) => x.id === id);
+      const cz = root.querySelector('#cz-panel');
+      const czBtn = root.querySelector('#cz-open');
+      if (w && cz && czBtn) {
+        const openCz = () => {
+          cz.innerHTML = customizePanelHtml(w);
+          cz.hidden = false;
+          czBtn.hidden = true;
+          mountCustomizePanel(cz, w, { workouts, plan, checkins, runs, zones: analysis?.zones });
+          cz.scrollIntoView({ block: 'start', behavior: 'smooth' });
+        };
+        czBtn.addEventListener('click', openCz);
+        if (sub === 'aanpassen') openCz();
+      }
       const btn = root.querySelector('#move-open');
       if (!w || !btn) return;
       const panel = root.querySelector('#move-panel');

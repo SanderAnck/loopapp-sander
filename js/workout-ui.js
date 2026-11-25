@@ -62,6 +62,14 @@ export function statusBadge(workout, { done, connected }) {
   return '';
 }
 
+function customText(c) {
+  const parts = [];
+  if (c.volumePct) parts.push(`${c.volumePct > 0 ? '+' : '−'}${Math.abs(c.volumePct)}% afstand`);
+  if (c.paceS) parts.push(`${Math.abs(c.paceS)} s/km ${c.paceS < 0 ? 'sneller' : 'trager'}`);
+  const v = { ok: 'ok', lighter: 'lichter, prima', pittig: 'pittig', 'te-zwaar': 'te zwaar' }[c.verdict];
+  return `${parts.join(', ')}${v ? `. Coach: ${v}.` : '.'}`;
+}
+
 export function workoutCard(workout, { done, connected, heading, actions = '' }) {
   return `
     <section class="card">
@@ -75,6 +83,7 @@ export function workoutCard(workout, { done, connected, heading, actions = '' })
       ${stepList(workout)}
       ${workout.note ? `<p class="card__text" style="margin-top:12px">${esc(workout.note)}</p>` : ''}
       ${workout.adjusted ? `<div class="note note--ambitious" style="margin-top:12px"><strong>Aangepast door de coach</strong>${esc(workout.adjusted.reason)}</div>` : ''}
+      ${workout.custom ? `<div class="note note--${workout.custom.verdict === 'te-zwaar' ? 'very-ambitious' : workout.custom.verdict === 'pittig' ? 'ambitious' : 'realistic'}" style="margin-top:12px"><strong>Door jou aangepast</strong>${esc(customText(workout.custom))}</div>` : ''}
       ${actions}
       ${heading && workout.why ? `<a class="btn btn--ghost" href="#/training/${esc(workout.id)}">Waarom deze training? ›</a>` : ''}
     </section>`;
