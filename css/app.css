@@ -114,13 +114,12 @@ h1, h2, h3, p { margin: 0; }
   flex: 1;
   padding: 4px calc(var(--safe-right) + 16px) calc(var(--tabbar-h) + var(--safe-bottom) + 24px) calc(var(--safe-left) + 16px);
   outline: none;
-  display: flex;
-  flex-direction: column;
-  gap: var(--gap);
   max-width: 640px;
   width: 100%;
   margin: 0 auto;
 }
+
+.page { display: flex; flex-direction: column; gap: var(--gap); }
 
 .section-label {
   font-size: 13px;
@@ -391,4 +390,105 @@ h1, h2, h3, p { margin: 0; }
 
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; }
+}
+
+/* ---------- Forms ---------- */
+
+.field { display: flex; flex-direction: column; gap: 8px; }
+.field + .field { margin-top: 20px; }
+.field__label { font-size: 15px; font-weight: 600; }
+.field__hint { font-size: 13px; color: var(--text-2); }
+
+.input {
+  width: 100%;
+  min-height: 48px;
+  padding: 0 14px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  font-size: 17px;
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.input:focus { border-color: var(--accent); }
+input[type="date"].input { display: flex; align-items: center; }
+
+.time-inputs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.time-inputs label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--text-2); font-weight: 600; }
+.time-inputs .input { text-align: center; font-family: var(--font-num); font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* Segmented control: one choice, big tap targets */
+.seg {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+
+.seg button {
+  flex: 1 1 auto;
+  min-height: 40px;
+  min-width: 44px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-2);
+  touch-action: manipulation;
+}
+
+.seg button[aria-pressed="true"] {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+
+/* Day chips: multi-select */
+.chips { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+
+.chip {
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-2);
+  touch-action: manipulation;
+}
+
+.chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+
+/* Coach note (feasibility) */
+.note {
+  border-left: 4px solid var(--text-3);
+  padding: 2px 0 2px 12px;
+  font-size: 15px;
+}
+
+.note--realistic, .note--easy { border-color: var(--good); }
+.note--ambitious { border-color: var(--warn); }
+.note--very-ambitious { border-color: var(--bad); }
+.note strong { display: block; margin-bottom: 2px; }
+
+.errors { color: var(--bad); font-size: 15px; margin: 0; padding-left: 18px; }
+
+/* Pace zone table */
+.zones { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 15px; }
+.zones td { padding: 10px 0; border-top: 1px solid var(--line); }
+.zones tr:first-child td { border-top: 0; }
+.zones td:last-child { text-align: right; font-family: var(--font-num); font-weight: 700; font-variant-numeric: tabular-nums; }
+.zones .zone-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; background: var(--text-3); }
+.zones .zone-dot--hard { background: var(--accent); }
+
+.sticky-save {
+  position: sticky;
+  bottom: calc(var(--tabbar-h) + var(--safe-bottom) + 12px);
+  z-index: 5;
 }

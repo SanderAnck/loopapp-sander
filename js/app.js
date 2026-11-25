@@ -2,27 +2,41 @@
 
 import { views } from './views.js';
 import { requestPersistentStorage } from './db.js';
+import { loadProfile, analyse } from './profile.js';
+import { showToast } from './ui.js';
 
 const DEFAULT_ROUTE = 'vandaag';
 const viewEl = document.getElementById('view');
 const titleEl = document.getElementById('title');
-const toastEl = document.getElementById('toast');
 
 function currentRoute() {
   const name = location.hash.replace(/^#\/?/, '').split('/')[0];
   return views[name] ? name : DEFAULT_ROUTE;
 }
 
-function render() {
+let renderId = 0;
+
+async function render() {
+  const id = ++renderId;
   const route = currentRoute();
   const view = views[route];
+
+  const profile = await loadProfile();
+  if (id !== renderId) return; // a newer navigation started meanwhile
+  const ctx = { profile, analysis: profile ? analyse(profile) : null };
+
   titleEl.textContent = view.title;
   document.title = `${view.title} · Pace`;
-  viewEl.innerHTML = view.html();
-  if (typeof view.mount === 'function') view.mount(viewEl);
+
+  // A fresh container per render, so event listeners never pile up.
+  const page = document.createElement('div');
+  page.className = 'page';
+  page.innerHTML = view.html(ctx);
+  viewEl.replaceChildren(page);
+  if (typeof view.mount === 'function') view.mount(page, ctx);
 
   for (const tab of document.querySelectorAll('.tab')) {
-    if (tab.dataset.route === route) tab.setAttribute('aria-current', 'page');
+    if (tab.dataset.route === view.tab) tab.setAttribute('aria-current', 'page');
     else tab.removeAttribute('aria-current');
   }
   window.scrollTo(0, 0);
@@ -33,28 +47,12 @@ viewEl.addEventListener('click', (e) => {
   if (e.target.closest('[data-soon]')) showToast('Komt in een volgende stap.');
 });
 
-// Re-render when the system switches between light and dark mode.
-window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', render);
+// Re-render when the system switches between light and dark mode,
+// except on the setup form, where it would throw away unsaved input.
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+  if (currentRoute() !== 'doel') render();
+});
 window.addEventListener('hashchange', render);
-
-let toastTimer = null;
-function showToast(message, action) {
-  clearTimeout(toastTimer);
-  toastEl.innerHTML = '';
-  const text = document.createElement('span');
-  text.textContent = message;
-  toastEl.append(text);
-  if (action) {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.textContent = action.label;
-    btn.addEventListener('click', action.onClick);
-    toastEl.append(btn);
-  } else {
-    toastTimer = setTimeout(() => (toastEl.hidden = true), 2500);
-  }
-  toastEl.hidden = false;
-}
 
 // Service worker: offline support, plus a toast when a new version is ready.
 async function registerServiceWorker() {
@@ -75,9 +73,11 @@ async function registerServiceWorker() {
     });
   });
 
+  // Only reload when an existing version was replaced, not on the very first install.
+  const hadController = Boolean(navigator.serviceWorker.controller);
   let reloading = false;
   navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (reloading) return;
+    if (!hadController || reloading) return;
     reloading = true;
     location.reload();
   });
@@ -89,6 +89,9 @@ async function registerServiceWorker() {
 }
 
 if (!location.hash) history.replaceState(null, '', `#/${DEFAULT_ROUTE}`);
-render();
+render().catch((err) => {
+  console.error(err);
+  viewEl.textContent = 'Er ging iets mis bij het laden van Pace.';
+});
 registerServiceWorker().catch((err) => console.warn('Service worker failed', err));
 requestPersistentStorage();
