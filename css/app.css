@@ -484,6 +484,9 @@ input[type="date"].input { display: flex; align-items: center; }
 .zones td { padding: 10px 0; border-top: 1px solid var(--line); }
 .zones tr:first-child td { border-top: 0; }
 .zones td:last-child { text-align: right; font-family: var(--font-num); font-weight: 700; font-variant-numeric: tabular-nums; }
+.zones--hr td:nth-child(2) { text-align: right; font-family: var(--font-num); font-weight: 700; font-variant-numeric: tabular-nums; padding-right: 12px; }
+.zones__head td { font-size: 12px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: .04em; padding-top: 0; }
+.zones__sub { display: block; font-size: 12px; font-weight: 500; color: var(--text-3); font-family: var(--font); }
 .zones .zone-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; background: var(--text-3); }
 .zones .zone-dot--hard { background: var(--accent); }
 
@@ -520,3 +523,26 @@ a.day { color: inherit; display: block; }
 .chips--wrap { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
 .chips--wrap .chip { padding: 0 14px; flex: 0 0 auto; }
 .textarea { min-height: 88px; padding: 12px 14px; resize: vertical; line-height: 1.4; }
+
+.step__hr { display: block; font-size: 12px; font-weight: 500; color: var(--text-3); text-align: right; margin-top: 2px; }
+
+/* Goal feasibility meter */
+.badge--easy, .badge--realistic { color: var(--good); }
+.badge--ambitious { color: var(--warn); }
+.badge--very-ambitious { color: var(--bad); }
+.meter { margin-top: 14px; }
+.meter__track { height: 8px; border-radius: 4px; background: var(--fill, rgba(127,127,127,.18)); overflow: hidden; position: relative; }
+.meter__track::before, .meter__track::after { content: ""; position: absolute; top: 0; bottom: 0; width: 2px; background: var(--surface); }
+.meter__track::before { left: 50%; }
+.meter__track::after { left: 73.3%; }
+.meter__fill { height: 100%; border-radius: 4px; }
+.meter__fill--easy, .meter__fill--realistic { background: var(--good); }
+.meter__fill--ambitious { background: var(--warn); }
+.meter__fill--very-ambitious { background: var(--bad); }
+.meter__labels { display: grid; grid-template-columns: 50% 23.3% 26.7%; margin-top: 6px; font-size: 12px; color: var(--text-3); }
+.meter__labels span:nth-child(2) { text-align: center; }
+.meter__labels span:last-child { text-align: right; }
+
+/* Move workout day picker */
+.move { margin-top: 8px; }
+.move__day:disabled { opacity: .35; text-decoration: line-through; }

@@ -50,6 +50,16 @@ export class IntervalsProvider {
     }
   }
 
+  /** Max and resting heart rate as Intervals.icu knows them (from your Garmin data). */
+  async fetchHeartRate() {
+    const athlete = await this.request(`/athlete/${ATHLETE}`);
+    const run = (athlete?.sportSettings || []).find((x) => (x.types || []).some((t) => /run/i.test(t)));
+    return {
+      maxHr: Number(run?.max_hr) || null,
+      restHr: Number(athlete?.icu_resting_hr) || null,
+    };
+  }
+
   /**
    * Create or update planned workouts in the Intervals.icu calendar.
    * Each Pace workout needs a stable `id` and a `date` (YYYY-MM-DD);

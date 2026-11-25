@@ -3,6 +3,20 @@
 import { esc, formatPace } from './ui.js';
 import { formatRaceTime } from './profile.js';
 import { PHASES, HARD_TYPES } from './coach/planner.js';
+import { zoneForPace } from './coach/hr.js';
+
+// Current pace zones and heart rate zones, set by the app on every render,
+// so each step can show its heart rate range next to the pace.
+let zoneCtx = null;
+export function setZoneContext(ctx) {
+  zoneCtx = ctx;
+}
+
+function hrHint(pace) {
+  if (!zoneCtx?.hrz) return '';
+  const z = zoneCtx.hrz.zones[zoneForPace(pace, zoneCtx.paceZones)];
+  return z ? `<span class="step__hr">♥ ${z.low}–${z.high}</span>` : '';
+}
 
 const paceRange = ([fast, slow]) =>
   Math.round(fast) === Math.round(slow) ? formatPace(fast) : `${formatPace(slow)}–${formatPace(fast)}`;
@@ -28,12 +42,12 @@ export function stepList(workout) {
       return `<li class="step step--work"><span class="step__bar"></span>
         <span><span class="step__name">${s.reps} × ${esc(amount(work))} ${esc(work.label || '')}</span><br>
         <span class="step__meta">${rec ? `${esc(amount(rec))} ${esc((rec.label || 'rustig').toLowerCase())} ertussen` : ''}</span></span>
-        <span class="step__pace">${paceRange(work.pace)}<span class="stat__unit">/km</span></span></li>`;
+        <span class="step__pace">${paceRange(work.pace)}<span class="stat__unit">/km</span>${hrHint(work.pace)}</span></li>`;
     }
     const hard = s.kind === 'work' && /tempo|wedstrijd|drempel|interval/i.test(s.label || '');
     return `<li class="step ${hard ? 'step--work' : ''}"><span class="step__bar"></span>
       <span><span class="step__name">${esc(s.label || STEP_NAMES[s.kind])}</span><br><span class="step__meta">${esc(amount(s))}</span></span>
-      <span class="step__pace">${paceRange(s.pace)}<span class="stat__unit">/km</span></span></li>`;
+      <span class="step__pace">${paceRange(s.pace)}<span class="stat__unit">/km</span>${hrHint(s.pace)}</span></li>`;
   });
   return `<ul class="steps">${rows.join('')}</ul>`;
 }

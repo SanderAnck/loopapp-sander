@@ -20,6 +20,9 @@ import { entryView, resultView } from './entry.js';
 import { db } from './db.js';
 import { activeProvider } from './sync/provider.js';
 import { showToast } from './ui.js';
+import { heartRateView } from './heartrate.js';
+import { canMove, moveOptions, movePanelHtml, mountMovePanel } from './move.js';
+import { feasibilityCard, consistency } from './feasibility.js';
 
 const ICON_CALENDAR =
   '<svg class="empty__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>';
@@ -84,7 +87,7 @@ export const views = {
       const today = isoDate(new Date());
       const done = runDates(runs);
       const todays = workouts.filter((w) => w.date === today);
-      const next = workouts.find((w) => w.date > today);
+      const next = workouts.find((w) => w.date > today && w.status === 'planned');
       const actions = (w) => {
         if (w.status === 'done' || w.status === 'partial' || w.status === 'aborted') {
           return `<a class="btn btn--secondary" href="#/resultaat/c-${esc(w.id)}" style="margin-top:12px">Bekijk wat de coach zei</a>`;
@@ -92,7 +95,8 @@ export const views = {
         if (w.status === 'skipped') return '<p class="card__text">Overgeslagen. Niet inhalen: je schema loopt gewoon verder.</p>';
         return `<div class="btn-row">
           <button class="btn btn--secondary" type="button" data-skip="${esc(w.id)}">Overslaan</button>
-          <a class="btn" href="#/invoer/${esc(w.id)}">Loop invoeren</a></div>`;
+          <a class="btn" href="#/invoer/${esc(w.id)}">Loop invoeren</a></div>
+          ${canMove(w) ? `<a class="btn btn--ghost" href="#/training/${esc(w.id)}/verplaats">Andere dag kiezen</a>` : ''}`;
       };
       // Runs that came in from the watch but have no questionnaire yet.
       const pending = workouts.filter((w) => w.date < today && w.status === 'planned' && done.has(w.date));
@@ -119,7 +123,7 @@ export const views = {
             <h2 class="card__title">Vandaag geen training</h2>
             <p class="card__text">Rust hoort bij het schema: daar word je sterker van.${next ? ` Volgende training: <strong>${esc(dayLabel(next.date).toLowerCase())}</strong>.` : ''}</p>
           </section>
-          ${next ? workoutCard(next, { done: false, connected: isConnected(sync), heading: `Volgende · ${dayLabel(next.date)}` }) : ''}`;
+          ${next ? workoutCard(next, { done: false, connected: isConnected(sync), heading: `Volgende · ${dayLabel(next.date)}`, actions: canMove(next) ? `<a class="btn btn--secondary" href="#/training/${esc(next.id)}/verplaats" style="margin-top:12px">Andere dag kiezen</a>` : '' }) : ''}`;
       }
       const watchHint =
         !isConnected(sync)
@@ -131,7 +135,8 @@ export const views = {
         <p class="section-label">${esc(date)}</p>
         ${main}
         ${watchHint}
-        ${goalCard(profile, analysis)}`;
+        ${goalCard(profile, analysis)}
+        ${feasibilityCard(profile, analysis, workouts, { compact: true })}`;
     },
     mount(root) {
       root.addEventListener('click', async (e) => {
@@ -216,11 +221,35 @@ export const views = {
       const w = workouts.find((x) => x.id === id);
       if (!w) return `<section class="card empty"><h2 class="empty__title">Training niet gevonden</h2><a class="btn" href="#/schema">Naar je schema</a></section>`;
       const done = runDates(runs).has(w.date);
+      const moved = w.movedFrom && w.movedFrom !== w.date ? `<p class="card__text">Verplaatst van ${esc(dayLabel(w.movedFrom).toLowerCase())}.</p>` : '';
+      const move = canMove(w)
+        ? `<button class="btn btn--secondary" type="button" id="move-open" style="margin-top:12px">Andere dag kiezen</button><div id="move-panel" hidden style="margin-top:16px"></div>`
+        : '';
       return `
         <a class="btn btn--ghost" href="#/schema" style="justify-content:flex-start;padding:0 4px;width:auto">‹ Schema</a>
         <p class="section-label">${esc(dayLabel(w.date))}</p>
-        ${workoutCard(w, { done, connected: isConnected(sync) })}
+        ${workoutCard(w, { done, connected: isConnected(sync), actions: moved + move })}
         ${whyCard(w)}`;
+    },
+    mount(root, { workouts, plan }) {
+      const [, , id, sub] = location.hash.split('/');
+      const w = workouts.find((x) => x.id === id);
+      const btn = root.querySelector('#move-open');
+      if (!w || !btn) return;
+      const panel = root.querySelector('#move-panel');
+      const open = () => {
+        panel.innerHTML = movePanelHtml(w, moveOptions(w, workouts, plan));
+        panel.hidden = false;
+        btn.hidden = true;
+      };
+      btn.addEventListener('click', open);
+      mountMovePanel(panel, w, moveOptions(w, workouts, plan), () => {
+        location.hash = '#/schema';
+      });
+      if (sub === 'verplaats') {
+        open();
+        panel.scrollIntoView({ block: 'center' });
+      }
     },
   },
 
@@ -246,7 +275,8 @@ export const views = {
   voortgang: {
     title: 'Voortgang',
     tab: 'voortgang',
-    html({ analysis, runs }) {
+    html({ profile, analysis, runs, workouts }) {
+      const cons = consistency(workouts);
       const predicted = analysis?.predictedNowS ? formatRaceTime(analysis.predictedNowS) : '–';
       const monday = new Date();
       monday.setHours(0, 0, 0, 0);
@@ -261,9 +291,10 @@ export const views = {
           <div class="stats">
             <div><div class="stat__value">${predicted}</div><div class="stat__label">Geschatte eindtijd</div></div>
             <div><div class="stat__value">${weekKmText}</div><div class="stat__label">Km deze week</div></div>
-            <div><div class="stat__value">–</div><div class="stat__label">Consistentie</div></div>
+            <div><div class="stat__value">${cons ? `${Math.round(cons.ratio * 100)}<span class="stat__unit">%</span>` : '–'}</div><div class="stat__label">Consistentie</div></div>
           </div>
         </section>
+        ${profile ? `<p class="section-label">Haalbaarheid van je doel</p>${feasibilityCard(profile, analysis, workouts)}` : ''}
         ${runs.length ? '' : `<section class="card empty">
           ${ICON_CHART}
           <h2 class="empty__title">Nog geen lopen</h2>
@@ -280,7 +311,7 @@ export const views = {
   profiel: {
     title: 'Profiel',
     tab: 'profiel',
-    html({ profile, analysis, sync }) {
+    html({ profile, analysis, sync, workouts, hrz }) {
       const mode = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'Donker' : 'Licht';
       let goalSection;
       if (profile) {
@@ -291,7 +322,6 @@ export const views = {
         const longRun = a.longRunDay === null ? 'Pace kiest' : WEEKDAYS_LONG[a.longRunDay];
         const max = a.maxWeekdayMin ? `max. ${a.maxWeekdayMin} min` : 'geen limiet';
         const level = levelLabel(profile);
-        const [fTitle, fText] = analysis.feasibility ? FEASIBILITY_TEXT[analysis.feasibility.level] : [null, null];
         goalSection = `
           <section class="card card--flush">
             <ul class="list">
@@ -307,11 +337,17 @@ export const views = {
             </ul>
           </section>
           <a class="btn btn--secondary" href="#/doel">Doel en dagen wijzigen</a>
-          ${fTitle ? `<section class="card"><div class="note note--${analysis.feasibility.level}"><strong>${esc(fTitle)}</strong>${esc(fText)}</div></section>` : ''}
-          <p class="section-label">Je tempozones</p>
+          ${feasibilityCard(profile, analysis, workouts, { compact: true })}
+          <p class="section-label">Je zones</p>
           <section class="card">
-            <p class="card__text" style="margin-top:0">Berekend uit je huidig niveau (VDOT ${analysis.currentVdot.toFixed(1).replace('.', ',')}). Ze worden sneller naarmate je fitter wordt.</p>
-            ${zonesTable(analysis.zones)}
+            <p class="card__text" style="margin-top:0">Tempo berekend uit je huidig niveau (VDOT ${analysis.currentVdot.toFixed(1).replace('.', ',')}). Ze worden sneller naarmate je fitter wordt.${hrz ? '' : ' Vul je hartslag in om ook je hartslagzones te zien.'}</p>
+            ${zonesTable(analysis.zones, hrz)}
+          </section>
+          <section class="card card--flush">
+            <ul class="list">
+              <li class="list__row"><a href="#/hartslag" style="color:inherit;display:flex;justify-content:space-between;width:100%">
+                <span>Hartslag</span><span class="list__value">${hrz ? `max. ${hrz.max} bpm${hrz.estimated ? ' (schatting)' : ''} ›` : 'Instellen ›'}</span></a></li>
+            </ul>
           </section>`;
       } else {
         goalSection = `
@@ -357,4 +393,5 @@ export const views = {
   koppeling: connectView,
   invoer: entryView,
   resultaat: resultView,
+  hartslag: heartRateView,
 };

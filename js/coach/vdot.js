@@ -64,13 +64,17 @@ export function paceZones(vdot) {
  * available. Typical gain for a recreational runner is about 0.15 to 0.3
  * VDOT per week early on, less when training only twice a week.
  */
+/** Realistic VDOT gain per week; fewer run days means slower progress. */
+export function weeklyCapacity(daysPerWeek) {
+  return daysPerWeek <= 2 ? 0.22 : daysPerWeek === 3 ? 0.28 : 0.33;
+}
+
 export function goalFeasibility({ currentVdot, goalVdot, weeks, daysPerWeek }) {
   const gain = goalVdot - currentVdot;
   if (gain <= 0) return { level: 'easy', gain, perWeek: 0 };
   const perWeek = gain / Math.max(weeks, 1);
-  // Fewer run days means slower progress.
-  const capacity = daysPerWeek <= 2 ? 0.22 : daysPerWeek === 3 ? 0.28 : 0.33;
+  const capacity = weeklyCapacity(daysPerWeek);
   const ratio = perWeek / capacity;
   const level = ratio <= 0.75 ? 'realistic' : ratio <= 1.1 ? 'ambitious' : 'very-ambitious';
-  return { level, gain, perWeek };
+  return { level, gain, perWeek, capacity, ratio };
 }

@@ -53,17 +53,24 @@ export const ZONE_LABELS = {
   repetition: 'Strides en korte versnellingen',
 };
 
-/** Pace zone table rows (fast to slow shown as slow–fast for easy reading). */
-export function zonesTable(zones) {
+/**
+ * Zone table: pace (slow–fast) and, when heart rate zones are known, the
+ * matching bpm range with the Garmin zone number shown on the watch.
+ */
+export function zonesTable(zones, hrz = null) {
   const rows = Object.entries(ZONE_LABELS)
     .map(([key, label]) => {
       const [fast, slow] = zones[key];
       const hard = key !== 'easy' && key !== 'marathon';
+      const h = hrz?.zones[key];
+      const g = h ? (h.garmin[0] === h.garmin[1] ? `zone ${h.garmin[0]}` : `zone ${h.garmin[0]}–${h.garmin[1]}`) : '';
+      const hrCell = hrz ? `<td>${h ? `${h.low}–${h.high}<span class="zones__sub">${g}</span>` : '<span class="zones__sub">op tempo</span>'}</td>` : '';
       return `<tr><td><span class="zone-dot ${hard ? 'zone-dot--hard' : ''}"></span>${esc(label)}</td>
-        <td>${formatPace(slow)}–${formatPace(fast)}</td></tr>`;
+        <td>${formatPace(slow)}–${formatPace(fast)}</td>${hrCell}</tr>`;
     })
     .join('');
-  return `<table class="zones">${rows}</table>`;
+  const head = hrz ? '<tr class="zones__head"><td></td><td>/km</td><td>bpm</td></tr>' : '';
+  return `<table class="zones${hrz ? ' zones--hr' : ''}">${head}${rows}</table>`;
 }
 
 export const FEASIBILITY_TEXT = {

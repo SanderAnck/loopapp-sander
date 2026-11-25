@@ -7,6 +7,9 @@ import { showToast } from './ui.js';
 import { loadSyncSettings, syncActivities } from './sync/provider.js';
 import { loadPlan, ensurePlanAndWatch, pushUpcoming } from './plan.js';
 import { seedTestWorkout } from './test-seed.js';
+import { loadHr, saveHr, hrZones } from './coach/hr.js';
+import { IntervalsProvider } from './sync/intervals.js';
+import { setZoneContext } from './workout-ui.js';
 
 const DEFAULT_ROUTE = 'vandaag';
 const viewEl = document.getElementById('view');
@@ -24,14 +27,18 @@ async function render() {
   const route = currentRoute();
   const view = views[route];
 
-  const [profile, sync, runs, { plan, workouts }] = await Promise.all([
+  const [profile, sync, runs, { plan, workouts }, hr] = await Promise.all([
     loadProfile(),
     loadSyncSettings(),
     db.getAll('runs'),
     loadPlan(),
+    loadHr(),
   ]);
   if (id !== renderId) return; // a newer navigation started meanwhile
-  const ctx = { profile, analysis: profile ? analyse(profile) : null, sync, runs, plan, workouts };
+  const analysis = profile ? analyse(profile) : null;
+  const hrz = hrZones(hr);
+  setZoneContext(analysis ? { paceZones: analysis.zones, hrz } : null);
+  const ctx = { profile, analysis, sync, runs, plan, workouts, hr, hrz };
 
   titleEl.textContent = view.title;
   document.title = `${view.title} · Pace`;
@@ -129,6 +136,18 @@ async function autoSync() {
   }
   const s = await loadSyncSettings();
   if (s.provider !== 'intervals' || !s.apiKey) return;
+  // Heart rate: fetch it once a day from Intervals.icu until it is known.
+  try {
+    const hr = await loadHr();
+    const tried = hr.triedAt && Date.now() - new Date(hr.triedAt) < 24 * 3600 * 1000;
+    if (!hr.maxHr && hr.source !== 'manual' && !tried) {
+      const got = await new IntervalsProvider(s.apiKey).fetchHeartRate();
+      await saveHr({ ...hr, maxHr: got.maxHr || null, restHr: hr.restHr || got.restHr || null, source: got.maxHr ? 'intervals' : null, triedAt: new Date().toISOString() });
+      if (got.maxHr) render();
+    }
+  } catch (err) {
+    console.warn('Heart rate fetch failed', err);
+  }
   if (s.lastSyncAt && Date.now() - new Date(s.lastSyncAt) < 15 * 60 * 1000) return;
   try {
     const n = await syncActivities();
