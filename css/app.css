@@ -323,7 +323,7 @@ h1, h2, h3, p { margin: 0; }
   bottom: 0;
   z-index: 20;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   padding: 0 var(--safe-right) var(--safe-bottom) var(--safe-left);
   background: color-mix(in srgb, var(--surface) 88%, transparent);
   -webkit-backdrop-filter: saturate(180%) blur(20px);
@@ -505,3 +505,10 @@ a.day { color: inherit; display: block; }
 .phase-seg--specific { background: color-mix(in srgb, var(--accent) 80%, var(--surface-2)); }
 .phase-seg--taper { background: var(--text-3); }
 .phase-seg.is-now { outline: 2px solid var(--text); outline-offset: 1px; }
+
+/* ---------- Why this workout ---------- */
+
+.why__label { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--accent); margin-top: 14px; }
+.why__text { font-size: 15px; margin-top: 4px; }
+.why__list { margin: 4px 0 0; padding-left: 18px; font-size: 15px; }
+.why__list li + li { margin-top: 4px; }

@@ -63,6 +63,7 @@ export function defaultProfile() {
       longRunDay: null, // null = let Pace choose
       maxWeekdayMin: null, // null = no limit
     },
+    challenge: 3, // 1 = voorzichtig ... 5 = maximaal
     notes: { injuries: 'Runners knee' },
     createdAt: new Date().toISOString(),
     updatedAt: null, // null until the user saved the setup once

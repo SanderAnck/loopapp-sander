@@ -2,7 +2,7 @@
 // and keeps the next 14 days on the watch through the active SyncProvider.
 
 import { db } from './db.js';
-import { generatePlan } from './coach/planner.js';
+import { generatePlan, PLANNER_VERSION } from './coach/planner.js';
 import { goalDistanceM, levelDistanceM, isoDate } from './profile.js';
 import { activeProvider, loadSyncSettings, saveSyncSettings } from './sync/provider.js';
 
@@ -68,7 +68,7 @@ export async function ensurePlanAndWatch(profile) {
   const plan = await db.get('plan', 'current');
   let changed = false;
   let stale = [];
-  if (!plan || plan.profileUpdatedAt !== profile.updatedAt) {
+  if (!plan || plan.profileUpdatedAt !== profile.updatedAt || plan.plannerVersion !== PLANNER_VERSION) {
     ({ stale } = await regeneratePlan(profile));
     changed = true;
   }

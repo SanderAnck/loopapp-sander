@@ -15,6 +15,8 @@ import {
   isoDate,
 } from './profile.js';
 import { regeneratePlan, pushUpcoming } from './plan.js';
+import { generatePlan, CHALLENGE_LEVELS, DEFAULT_CHALLENGE } from './coach/planner.js';
+import { goalDistanceM, levelDistanceM } from './profile.js';
 
 let draft = null;
 
@@ -75,8 +77,28 @@ function previewHtml() {
     <hr class="divider">
     ${note}
     <hr class="divider">
+    ${planSummary()}
+    <hr class="divider">
     <div class="card__eyebrow">Je tempozones nu</div>
     ${zonesTable(a.zones)}`;
+}
+
+function planSummary() {
+  try {
+    const { plan, workouts } = generatePlan(draft, { today: new Date(), goalDistanceM: goalDistanceM(draft), levelDistanceM: levelDistanceM(draft) });
+    const peak = Math.max(...plan.weeks.map((w) => w.plannedKm));
+    const longest = Math.max(...workouts.filter((w) => w.type === 'long').map((w) => w.km), 0);
+    const quality = workouts.filter((w) => !['easy', 'long', 'race'].includes(w.type)).length;
+    const nf = (x) => x.toLocaleString('nl-BE', { maximumFractionDigits: 1 });
+    return `<div class="card__eyebrow">Je schema op dit niveau</div>
+      <div class="stats">
+        <div><div class="stat__value">${nf(peak)}<span class="stat__unit">km</span></div><div class="stat__label">Drukste week</div></div>
+        <div><div class="stat__value">${nf(longest)}<span class="stat__unit">km</span></div><div class="stat__label">Langste duurloop</div></div>
+        <div><div class="stat__value">${quality}</div><div class="stat__label">Kwaliteitssessies</div></div>
+      </div>`;
+  } catch {
+    return '';
+  }
 }
 
 function formHtml() {
@@ -150,6 +172,16 @@ function formHtml() {
       </div>
     </section>
 
+    <p class="section-label">Uitdaging</p>
+    <section class="card">
+      <div class="field">
+        <span class="field__label">Hoe zwaar mag je schema zijn?</span>
+        ${seg('challenge', Object.entries(CHALLENGE_LEVELS).map(([k, v]) => [k, v.label]), draft.challenge ?? DEFAULT_CHALLENGE)}
+        <span class="field__hint" id="challenge-text">${esc(CHALLENGE_LEVELS[draft.challenge ?? DEFAULT_CHALLENGE].text)}</span>
+        <span class="field__hint">De veiligheidsgrenzen blijven op elk niveau gelden: hoogstens 10% meer per week, nooit 2 zware dagen na elkaar.</span>
+      </div>
+    </section>
+
     <p class="section-label">Wat de coach ervan denkt</p>
     <section class="card" id="preview">${previewHtml()}</section>
 
@@ -175,6 +207,7 @@ export const setupView = {
 
   html({ profile }) {
     draft = clone(profile || defaultProfile());
+    draft.challenge ??= DEFAULT_CHALLENGE;
     return formHtml();
   },
 
@@ -184,7 +217,7 @@ export const setupView = {
       if (segBtn) {
         const path = segBtn.dataset.seg;
         const raw = segBtn.dataset.value;
-        const numeric = path === 'availability.daysPerWeek' || path === 'availability.maxWeekdayMin';
+        const numeric = path === 'availability.daysPerWeek' || path === 'availability.maxWeekdayMin' || path === 'challenge';
         const value = numeric ? (raw === '' ? null : Number(raw)) : raw;
         setPath(draft, path, value);
         for (const b of segBtn.parentElement.children) b.setAttribute('aria-pressed', String(b === segBtn));
@@ -192,6 +225,7 @@ export const setupView = {
         if (path === 'goal.type') root.querySelector('[data-field="goal.customDistanceKm"]').hidden = value !== 'custom';
         if (path === 'level.distance') root.querySelector('[data-field="level.customDistanceKm"]').hidden = value !== 'custom';
         if (path === 'goal.mode') root.querySelector('[data-show="time"]').hidden = value !== 'time';
+        if (path === 'challenge') root.querySelector('#challenge-text').textContent = CHALLENGE_LEVELS[value].text;
         refreshPreview(root);
         return;
       }

@@ -57,6 +57,7 @@ export function workoutCard(workout, { done, connected, heading }) {
       </div>
       ${stepList(workout)}
       ${workout.note ? `<p class="card__text" style="margin-top:12px">${esc(workout.note)}</p>` : ''}
+      ${heading && workout.why ? `<a class="btn btn--ghost" href="#/training/${esc(workout.id)}">Waarom deze training? ›</a>` : ''}
     </section>`;
 }
 
@@ -75,6 +76,25 @@ export function workoutRow(w, done) {
   return `<li><a class="list__row" href="#/training/${esc(w.id)}" style="color:inherit">
     <span>${esc(w.name)}<br><span class="field__hint">${esc(d)}</span></span>
     <span class="list__value">${done ? '✓ ' : ''}${w.km.toLocaleString('nl-BE', { maximumFractionDigits: 1 })} km · ${Math.round(w.durationS / 60)} min ›</span></a></li>`;
+}
+
+/** "Why this workout": its purpose, the reasons for this choice now, and how it should feel. */
+export function whyCard(w, { withTitle = false } = {}) {
+  if (!w.why) return '';
+  const reasons = w.why.reasons.map((r) => `<li>${esc(r)}</li>`).join('');
+  return `
+    <section class="card">
+      ${withTitle
+        ? `<a href="#/training/${esc(w.id)}" style="color:inherit"><div class="card__eyebrow">${esc(dayLabel(w.date))} · ${esc(PHASES[w.phase].label)}</div>
+           <h2 class="card__title">${esc(w.name)} <span class="stat__unit">${w.km.toLocaleString('nl-BE', { maximumFractionDigits: 1 })} km ›</span></h2></a>`
+        : '<div class="card__eyebrow">Waarom deze training</div>'}
+      <p class="why__label">Doel</p>
+      <p class="why__text">${esc(w.why.goal)}</p>
+      <p class="why__label">Waarom nu</p>
+      <ul class="why__list">${reasons}</ul>
+      <p class="why__label">Hoe het moet voelen</p>
+      <p class="why__text">${esc(w.why.feel)}</p>
+    </section>`;
 }
 
 export { formatRaceTime };

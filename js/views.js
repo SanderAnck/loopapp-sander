@@ -6,7 +6,8 @@ import { isIos, isStandalone } from './platform.js';
 import { esc, formatPace, formatDateLong, zonesTable, FEASIBILITY_TEXT } from './ui.js';
 import { goalLabel, levelLabel, formatRaceTime, WEEKDAYS_LONG, isoDate } from './profile.js';
 import { workoutCard, workoutRow, dayLabel } from './workout-ui.js';
-import { PHASES } from './coach/planner.js';
+import { PHASES, CHALLENGE_LEVELS, DEFAULT_CHALLENGE } from './coach/planner.js';
+import { whyCard } from './workout-ui.js';
 
 const addDays = (iso, n) => {
   const d = new Date(`${iso}T12:00:00`);
@@ -172,7 +173,27 @@ export const views = {
       return `
         <a class="btn btn--ghost" href="#/schema" style="justify-content:flex-start;padding:0 4px;width:auto">‹ Schema</a>
         <p class="section-label">${esc(dayLabel(w.date))}</p>
-        ${workoutCard(w, { done, connected: isConnected(sync) })}`;
+        ${workoutCard(w, { done, connected: isConnected(sync) })}
+        ${whyCard(w)}`;
+    },
+  },
+
+  uitleg: {
+    title: 'Uitleg',
+    tab: 'uitleg',
+    html({ profile, plan, workouts }) {
+      if (!profile || !plan) return noGoal();
+      const today = isoDate(new Date());
+      const upcoming = workouts.filter((w) => w.date >= today).slice(0, 6);
+      const lvl = CHALLENGE_LEVELS[plan.challenge ?? DEFAULT_CHALLENGE];
+      return `
+        <section class="card">
+          <div class="card__eyebrow">Waarom je schema zo is opgebouwd</div>
+          <p class="card__text">Pace volgt 4 fases: basis, opbouw, specifiek en taper. Elke 4de week is een herstelweek. Je weekvolume stijgt hoogstens 10% per week en er komen nooit 2 zware dagen na elkaar. Je tempo's komen uit je fitheid (VDOT ${plan.startVdot.toFixed(1).replace('.', ',')}) en worden elke week een beetje sneller.</p>
+          <p class="card__text">Uitdagingsniveau: <strong>${esc(lvl.label)}</strong>. ${esc(lvl.text)} <a href="#/doel">Aanpassen</a></p>
+        </section>
+        ${upcoming.map((w) => whyCard(w, { withTitle: true })).join('')}
+        <p class="field__hint" style="text-align:center">Tik op een training in Schema voor de uitleg van elke andere week.</p>`;
     },
   },
 
@@ -236,6 +257,7 @@ export const views = {
               <li class="list__row"><span>Voorkeursdagen</span><span class="list__value">${esc(days)}</span></li>
               <li class="list__row"><span>Lange duurloop</span><span class="list__value">${esc(longRun)}</span></li>
               <li class="list__row"><span>Weekdagen</span><span class="list__value">${esc(max)}</span></li>
+              <li class="list__row"><span>Uitdaging</span><span class="list__value">${esc(CHALLENGE_LEVELS[profile.challenge ?? DEFAULT_CHALLENGE].label)}</span></li>
             </ul>
           </section>
           <a class="btn btn--secondary" href="#/doel">Doel en dagen wijzigen</a>
