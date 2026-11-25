@@ -9,7 +9,9 @@ import { activeProvider, loadSyncSettings, saveSyncSettings } from './sync/provi
 const WATCH_WINDOW_DAYS = 14;
 
 export async function loadPlan() {
-  const [plan, workouts] = await Promise.all([db.get('plan', 'current'), db.getAll('workouts')]);
+  const [plan, all] = await Promise.all([db.get('plan', 'current'), db.getAll('workouts')]);
+  // Workouts you removed yourself stay stored (for undo) but are hidden everywhere.
+  const workouts = all.filter((w) => w.status !== 'removed');
   workouts.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
   return { plan: plan || null, workouts };
 }
@@ -30,7 +32,7 @@ export async function regeneratePlan(profile) {
   const finishedDates = new Set();
   for (const w of existing) {
     if (w.date < today || w.keep) continue;
-    if (['done', 'partial', 'aborted'].includes(w.status)) {
+    if (['done', 'partial', 'aborted', 'removed'].includes(w.status)) {
       finishedDates.add(w.date); // keep what was already run today
       continue;
     }

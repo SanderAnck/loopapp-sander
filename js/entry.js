@@ -228,7 +228,7 @@ async function saveCheckin(f) {
 
   const [allCheckins, allWorkouts, profile] = await Promise.all([db.getAll('checkins'), db.getAll('workouts'), db.get('profile', 'me')]);
   const history = allCheckins.filter((c) => c.id !== checkin.id && !c.test).sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
-  const upcoming = allWorkouts.filter((w) => w.date > f.date).sort((a, b) => (a.date < b.date ? -1 : 1));
+  const upcoming = allWorkouts.filter((w) => w.date > f.date && w.status !== 'removed').sort((a, b) => (a.date < b.date ? -1 : 1));
 
   const decision = adapt({ workout, run, checkin, history, upcoming, today: f.date < today ? today : f.date });
   checkin.result = decision.evaluation.result;

@@ -39,6 +39,7 @@ export function showToast(message, action) {
     btn.textContent = action.label;
     btn.addEventListener('click', action.onClick);
     el.append(btn);
+    if (action.timeoutMs) toastTimer = setTimeout(() => (el.hidden = true), action.timeoutMs);
   } else {
     toastTimer = setTimeout(() => (el.hidden = true), 2500);
   }

@@ -348,13 +348,17 @@ export const views = {
       const move = canMove(w)
         ? `<button class="btn btn--secondary" type="button" id="move-open" style="margin-top:12px">Andere dag kiezen</button><div id="move-panel" hidden style="margin-top:16px"></div>`
         : '';
+      const removable = ['planned', 'missed', 'skipped'].includes(w.status) && w.type !== 'race';
+      const remove = removable
+        ? `<button class="btn btn--ghost" type="button" id="rm-open" style="color:var(--bad);margin-top:4px">Training verwijderen</button><div id="rm-panel" hidden style="margin-top:12px"></div>`
+        : '';
       const pimp = canCustomize(w)
         ? `<button class="btn" type="button" id="cz-open" style="margin-top:12px">Pimp deze training</button>`
         : '';
       return `
         <a class="btn btn--ghost" href="#/schema" style="justify-content:flex-start;padding:0 4px;width:auto">‹ Schema</a>
         <p class="section-label">${esc(dayLabel(w.date))}</p>
-        ${workoutCard(w, { done, connected: isConnected(sync), actions: moved + late + pimp + move })}
+        ${workoutCard(w, { done, connected: isConnected(sync), actions: moved + late + pimp + move + remove })}
         ${canCustomize(w) ? '<section class="card" id="cz-panel" hidden></section>' : ''}
         ${whyCard(w)}`;
     },
@@ -373,6 +377,55 @@ export const views = {
         };
         czBtn.addEventListener('click', openCz);
         if (sub === 'aanpassen') openCz();
+      }
+      const rmBtn = root.querySelector('#rm-open');
+      if (w && rmBtn) {
+        rmBtn.addEventListener('click', () => {
+          const key = ['long', 'threshold', 'intervals', 'racepace', 'fartlek', 'hills'].includes(w.type);
+          const panel = root.querySelector('#rm-panel');
+          rmBtn.hidden = true;
+          panel.hidden = false;
+          panel.innerHTML = `
+            <div class="note note--${key ? 'ambitious' : 'realistic'}"><strong>${esc(w.name)} verwijderen?</strong>${
+              key
+                ? 'Dit is een van je belangrijkste trainingen van de week. Lukt de dag niet, dan is verplaatsen meestal beter. Verwijder je ze toch, dan loopt je schema gewoon verder: niet inhalen.'
+                : 'Geen probleem: een rustige loop minder verandert weinig aan je doel. Je schema loopt gewoon verder.'
+            }</div>
+            <div class="btn-row" style="margin-top:12px">
+              <button class="btn btn--secondary" type="button" id="rm-no">Annuleren</button>
+              <button class="btn" type="button" id="rm-yes" style="background:var(--bad);border-color:var(--bad)">Verwijderen</button>
+            </div>`;
+          panel.querySelector('#rm-no').addEventListener('click', () => {
+            panel.hidden = true;
+            rmBtn.hidden = false;
+          });
+          panel.querySelector('#rm-yes').addEventListener('click', async () => {
+            const before = await db.get('workouts', w.id);
+            await db.put('workouts', { ...before, status: 'removed', removed: { at: new Date().toISOString(), previousStatus: before.status } });
+            try {
+              const provider = await activeProvider();
+              if (provider.canPushWorkouts && before.pushedAt) await provider.deleteWorkouts([w.id]);
+            } catch {
+              /* the watch keeps it for now; it is not pushed again */
+            }
+            location.hash = '#/schema';
+            showToast('Training verwijderd.', {
+              label: 'Ongedaan maken',
+              timeoutMs: 8000,
+              onClick: async () => {
+                const { removed, ...rest } = await db.get('workouts', w.id);
+                await db.put('workouts', { ...rest, status: removed?.previousStatus || 'planned', pushedAt: null });
+                try {
+                  await pushUpcoming();
+                } catch {
+                  /* pushed again on the next sync */
+                }
+                document.getElementById('toast').hidden = true;
+                window.dispatchEvent(new HashChangeEvent('hashchange'));
+              },
+            });
+          });
+        });
       }
       const btn = root.querySelector('#move-open');
       if (!w || !btn) return;
