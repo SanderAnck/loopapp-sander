@@ -286,7 +286,7 @@ export const views = {
           const open = ws.filter((w) => w.status === 'planned' && w.date >= today && !w.test);
           const onWatch = open.length && open.every((w) => w.pushedAt);
           const watchRow = connected && open.length
-            ? `<div class="list__row"><span class="field__hint">${onWatch ? '⌚ Staat op je horloge' : `${open.length} ${open.length === 1 ? 'training' : 'trainingen'} nog niet op je horloge`}</span>
+            ? `<div class="list__row"><span class="field__hint">${onWatch ? (wk.start <= addDays(today, 6) ? '⌚ Verstuurd naar je horloge' : '⌚ Verstuurd, komt de week ervoor op je horloge') : `${open.length} ${open.length === 1 ? 'training' : 'trainingen'} nog niet op je horloge`}</span>
                 <button class="btn btn--small${onWatch ? ' btn--secondary' : ''}" type="button" data-push-week="${esc(wk.start)}">${onWatch ? 'Opnieuw' : 'Naar horloge'}</button></div>`
             : '';
           return `

@@ -58,7 +58,10 @@ export function statusBadge(workout, { done, connected }) {
   if (workout.status === 'cancelled') return '<span class="badge">Rustdag (coach)</span>';
   if (workout.status === 'missed') return '<span class="badge">Gemist</span>';
   if (workout.rescheduled && workout.status === 'planned') return '<span class="badge badge--accent">Ingehaald</span>';
-  if (connected && workout.pushedAt) return '<span class="badge badge--accent">⌚ Staat op horloge</span>';
+  if (connected && workout.pushedAt) {
+    const soon = (new Date(`${workout.date}T12:00:00`) - new Date()) / 864e5 < 7;
+    return `<span class="badge badge--accent">⌚ ${soon ? 'Staat op horloge' : 'Verstuurd'}</span>`;
+  }
   return '';
 }
 

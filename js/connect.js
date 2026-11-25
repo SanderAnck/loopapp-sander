@@ -65,7 +65,7 @@ function connectedHtml(settings) {
         <div class="seg">${Object.entries(WATCH_WINDOWS)
           .map(([k, label]) => `<button type="button" data-window="${k}" aria-pressed="${String(settings.watchWindow ?? 14) === k}">${label}</button>`)
           .join('')}</div>
-        <span class="field__hint">Pace houdt deze periode automatisch bij op je horloge. Je kan in Schema ook een losse week versturen.</span>
+        <span class="field__hint">Pace zet deze periode in Intervals.icu. Intervals.icu stuurt telkens de komende 7 dagen door naar Garmin, de rest volgt vanzelf naarmate de dagen naderen.</span>
       </div>
       <p class="card__text">Laatst verstuurd: <strong>${esc(settings.lastPushAt ? new Date(settings.lastPushAt).toLocaleString('nl-BE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'nog niet')}</strong></p>
       <button class="btn" type="button" id="push-now" style="margin-top:12px">Nu synchroniseren</button>
