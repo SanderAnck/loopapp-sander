@@ -512,3 +512,11 @@ a.day { color: inherit; display: block; }
 .why__text { font-size: 15px; margin-top: 4px; }
 .why__list { margin: 4px 0 0; padding-left: 18px; font-size: 15px; }
 .why__list li + li { margin-top: 4px; }
+
+/* ---------- After-run questionnaire ---------- */
+
+.rpe { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+.rpe .chip { min-height: 52px; font-size: 18px; }
+.chips--wrap { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.chips--wrap .chip { padding: 0 14px; flex: 0 0 auto; }
+.textarea { min-height: 88px; padding: 12px 14px; resize: vertical; line-height: 1.4; }

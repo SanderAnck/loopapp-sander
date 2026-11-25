@@ -27,13 +27,17 @@ export async function regeneratePlan(profile) {
   });
   const existing = await db.getAll('workouts');
   const removed = [];
+  const finishedDates = new Set();
   for (const w of existing) {
-    if (w.date >= today) {
-      await db.delete('workouts', w.id);
-      if (w.pushedAt) removed.push(w.id);
+    if (w.date < today || w.keep) continue;
+    if (['done', 'partial', 'aborted'].includes(w.status)) {
+      finishedDates.add(w.date); // keep what was already run today
+      continue;
     }
+    await db.delete('workouts', w.id);
+    if (w.pushedAt) removed.push(w.id);
   }
-  for (const w of workouts) await db.put('workouts', w);
+  for (const w of workouts) if (!finishedDates.has(w.date)) await db.put('workouts', w);
   await db.put('plan', plan);
 
   // Workouts that were on the watch but are no longer in the plan.

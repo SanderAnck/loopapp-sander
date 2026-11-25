@@ -40,12 +40,13 @@ export function stepList(workout) {
 
 /** Status badge: done, on the watch, or planned. */
 export function statusBadge(workout, { done, connected }) {
-  if (done) return '<span class="badge badge--good">✓ Gedaan</span>';
+  if (done || workout.status === 'done') return '<span class="badge badge--good">✓ Gedaan</span>';
+  if (workout.status === 'cancelled') return '<span class="badge">Rustdag (coach)</span>';
   if (connected && workout.pushedAt) return '<span class="badge badge--accent">⌚ Staat op horloge</span>';
   return '';
 }
 
-export function workoutCard(workout, { done, connected, heading }) {
+export function workoutCard(workout, { done, connected, heading, actions = '' }) {
   return `
     <section class="card">
       <div class="card__eyebrow">${esc(heading || PHASES[workout.phase].label + ' · week ' + workout.week)} ${statusBadge(workout, { done, connected })}</div>
@@ -57,6 +58,8 @@ export function workoutCard(workout, { done, connected, heading }) {
       </div>
       ${stepList(workout)}
       ${workout.note ? `<p class="card__text" style="margin-top:12px">${esc(workout.note)}</p>` : ''}
+      ${workout.adjusted ? `<div class="note note--ambitious" style="margin-top:12px"><strong>Aangepast door de coach</strong>${esc(workout.adjusted.reason)}</div>` : ''}
+      ${actions}
       ${heading && workout.why ? `<a class="btn btn--ghost" href="#/training/${esc(workout.id)}">Waarom deze training? ›</a>` : ''}
     </section>`;
 }
@@ -71,11 +74,13 @@ export function dayLabel(iso) {
   return d.toLocaleDateString('nl-BE', { weekday: 'long', day: 'numeric', month: 'long' });
 }
 
+const STATUS_TEXT = { done: '✓ ', partial: '◐ ', aborted: '✕ ', skipped: 'overgeslagen · ', cancelled: 'rust (coach) · ' };
+
 export function workoutRow(w, done) {
   const d = new Date(`${w.date}T12:00:00`).toLocaleDateString('nl-BE', { weekday: 'short', day: 'numeric', month: 'short' });
   return `<li><a class="list__row" href="#/training/${esc(w.id)}" style="color:inherit">
     <span>${esc(w.name)}<br><span class="field__hint">${esc(d)}</span></span>
-    <span class="list__value">${done ? '✓ ' : ''}${w.km.toLocaleString('nl-BE', { maximumFractionDigits: 1 })} km · ${Math.round(w.durationS / 60)} min ›</span></a></li>`;
+    <span class="list__value">${STATUS_TEXT[w.status] || (done ? '✓ ' : '')}${w.adjusted && w.status === 'planned' ? 'aangepast · ' : ''}${w.km.toLocaleString('nl-BE', { maximumFractionDigits: 1 })} km · ${Math.round(w.durationS / 60)} min ›</span></a></li>`;
 }
 
 /** "Why this workout": its purpose, the reasons for this choice now, and how it should feel. */

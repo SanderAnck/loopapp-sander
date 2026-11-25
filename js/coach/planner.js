@@ -396,6 +396,9 @@ export function generatePlan(profile, { today = new Date(), goalDistanceM, level
     const z = paceZones(v);
     const [slowF, fastF] = TUNE.easy[L];
     z.easy = [Math.round(paceAtFraction(v, fastF)), Math.round(paceAtFraction(v, slowF))];
+    // Coach adjustments after check-ins (positive = slower).
+    const off = Number(profile.paceOffsetS) || 0;
+    if (off) for (const k of Object.keys(z)) z[k] = [z[k][0] + off, z[k][1] + off];
     return z;
   };
   const goalPace = hasTimeGoal ? profile.goal.targetTimeS / (goalDistanceM / 1000) : Math.round(paceAtFraction(currentVdot, 0.8));

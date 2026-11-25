@@ -5,7 +5,8 @@ import { db, requestPersistentStorage } from './db.js';
 import { loadProfile, analyse } from './profile.js';
 import { showToast } from './ui.js';
 import { loadSyncSettings, syncActivities } from './sync/provider.js';
-import { loadPlan, ensurePlanAndWatch } from './plan.js';
+import { loadPlan, ensurePlanAndWatch, pushUpcoming } from './plan.js';
+import { seedTestWorkout } from './test-seed.js';
 
 const DEFAULT_ROUTE = 'vandaag';
 const viewEl = document.getElementById('view');
@@ -117,7 +118,12 @@ window.addEventListener('pace:check-update', checkForUpdate);
 async function autoSync() {
   // Keep the plan in step with the profile and the next 14 days on the watch.
   try {
-    if (await ensurePlanAndWatch(await loadProfile())) render();
+    let changed = await ensurePlanAndWatch(await loadProfile());
+    if (await seedTestWorkout((await loadPlan()).plan)) {
+      changed = true;
+      pushUpcoming().catch((err) => console.warn('Push failed', err));
+    }
+    if (changed) render();
   } catch (err) {
     console.warn('Plan update failed', err);
   }

@@ -16,6 +16,10 @@ const addDays = (iso, n) => {
 };
 import { setupView } from './setup.js';
 import { connectView } from './connect.js';
+import { entryView, resultView } from './entry.js';
+import { db } from './db.js';
+import { activeProvider } from './sync/provider.js';
+import { showToast } from './ui.js';
 
 const ICON_CALENDAR =
   '<svg class="empty__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>';
@@ -59,7 +63,7 @@ function runListRow(r) {
 }
 
 const isConnected = (sync) => sync.provider === 'intervals' && Boolean(sync.apiKey);
-const runDates = (runs) => new Set(runs.map((r) => r.date));
+const runDates = (runs) => new Set(runs.filter((r) => !r.test).map((r) => r.date));
 
 function noGoal() {
   return `
@@ -81,9 +85,33 @@ export const views = {
       const done = runDates(runs);
       const todays = workouts.filter((w) => w.date === today);
       const next = workouts.find((w) => w.date > today);
+      const actions = (w) => {
+        if (w.status === 'done' || w.status === 'partial' || w.status === 'aborted') {
+          return `<a class="btn btn--secondary" href="#/resultaat/c-${esc(w.id)}" style="margin-top:12px">Bekijk wat de coach zei</a>`;
+        }
+        if (w.status === 'skipped') return '<p class="card__text">Overgeslagen. Niet inhalen: je schema loopt gewoon verder.</p>';
+        return `<div class="btn-row">
+          <button class="btn btn--secondary" type="button" data-skip="${esc(w.id)}">Overslaan</button>
+          <a class="btn" href="#/invoer/${esc(w.id)}">Loop invoeren</a></div>`;
+      };
+      // Runs that came in from the watch but have no questionnaire yet.
+      const pending = workouts.filter((w) => w.date < today && w.status === 'planned' && done.has(w.date));
+      const pendingCards = pending
+        .map((w) => `<section class="card"><div class="card__eyebrow"><span class="badge badge--accent">⌚ Binnengekomen</span></div>
+          <h2 class="card__title">Hoe ging je ${esc(w.name.toLowerCase())} van ${esc(dayLabel(w.date).toLowerCase())}?</h2>
+          <p class="card__text">Vul de vragenlijst in, dan stuurt de coach je schema bij.</p>
+          <a class="btn" href="#/invoer/${esc(w.id)}" style="margin-top:12px">Vragenlijst invullen</a></section>`)
+        .join('');
+      // A run on this date only counts for a workout when no other workout of
+      // today was already linked to a run through the questionnaire.
+      const finished = (w) => ['done', 'partial', 'aborted'].includes(w.status);
+      const isDone = (w) => finished(w) || (w.status === 'planned' && done.has(w.date) && !todays.some(finished));
       let main;
-      if (todays.length) {
-        main = todays.map((w) => workoutCard(w, { done: done.has(w.date), connected: isConnected(sync), heading: 'Training van vandaag' })).join('');
+      const visible = todays.filter((w) => w.status !== 'cancelled');
+      if (visible.length) {
+        main = visible
+          .map((w) => workoutCard(w, { done: isDone(w), connected: isConnected(sync), heading: w.test ? 'Testtraining' : 'Training van vandaag', actions: actions(w) }))
+          .join('');
       } else {
         main = `
           <section class="card">
@@ -99,10 +127,28 @@ export const views = {
           : '';
       return `
         ${installHint()}
+        ${pendingCards}
         <p class="section-label">${esc(date)}</p>
         ${main}
         ${watchHint}
         ${goalCard(profile, analysis)}`;
+    },
+    mount(root) {
+      root.addEventListener('click', async (e) => {
+        const b = e.target.closest('[data-skip]');
+        if (!b) return;
+        const w = await db.get('workouts', b.dataset.skip);
+        if (!w) return;
+        await db.put('workouts', { ...w, status: 'skipped' });
+        try {
+          const provider = await activeProvider();
+          if (provider.canPushWorkouts && w.pushedAt) await provider.deleteWorkouts([w.id]);
+        } catch {
+          /* the watch keeps it; harmless */
+        }
+        showToast('Overgeslagen. Niet inhalen: je schema loopt gewoon verder.');
+        window.dispatchEvent(new HashChangeEvent('hashchange'));
+      });
     },
   },
 
@@ -309,4 +355,6 @@ export const views = {
 
   doel: setupView,
   koppeling: connectView,
+  invoer: entryView,
+  resultaat: resultView,
 };
