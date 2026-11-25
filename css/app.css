@@ -1,0 +1,394 @@
+/* ==========================================================================
+   Pace design system
+   One accent colour, neutral greys, big bold numbers, small quiet labels.
+   Light and dark mode follow the iPhone system setting.
+   ========================================================================== */
+
+:root {
+  /* Colour tokens: light */
+  --accent: #FF5A1F;
+  --accent-press: #E64A12;
+  --accent-soft: #FFEDE5;
+  --on-accent: #FFFFFF;
+
+  --bg: #F5F5F7;          /* page background behind cards */
+  --surface: #FFFFFF;     /* cards, tab bar */
+  --surface-2: #F0F0F2;   /* inputs, segmented controls */
+  --text: #111113;
+  --text-2: #6C6C72;      /* labels, secondary text */
+  --text-3: #9C9CA3;      /* hints, disabled */
+  --line: #E4E4E7;        /* hairlines and card borders */
+
+  --good: #1F9D55;
+  --warn: #C98200;
+  --bad: #D93025;
+
+  /* Type */
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-num: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+
+  /* Shape and spacing (8 pt grid) */
+  --radius: 16px;
+  --radius-sm: 10px;
+  --gap: 16px;
+  --tabbar-h: 56px;
+
+  /* iPhone safe areas */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --accent: #FF6B33;
+    --accent-press: #FF8152;
+    --accent-soft: #3A1A0E;
+
+    --bg: #000000;
+    --surface: #141416;
+    --surface-2: #1F1F22;
+    --text: #F5F5F7;
+    --text-2: #A0A0A7;
+    --text-3: #6E6E75;
+    --line: #2A2A2E;
+
+    --good: #34C26F;
+    --warn: #F0A92E;
+    --bad: #FF5C50;
+  }
+}
+
+/* ---------- Base ---------- */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 17px;
+  line-height: 1.4;
+  -webkit-font-smoothing: antialiased;
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+}
+
+button, input, select, textarea { font: inherit; color: inherit; }
+a { color: var(--accent); text-decoration: none; }
+h1, h2, h3, p { margin: 0; }
+[hidden] { display: none !important; }
+
+.app {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---------- Top bar (iOS-style large title) ---------- */
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  padding: calc(var(--safe-top) + 12px) calc(var(--safe-right) + 20px) 10px calc(var(--safe-left) + 20px);
+  background: var(--bg);
+}
+
+.topbar__title {
+  font-size: 34px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+/* ---------- Main view ---------- */
+
+.view {
+  flex: 1;
+  padding: 4px calc(var(--safe-right) + 16px) calc(var(--tabbar-h) + var(--safe-bottom) + 24px) calc(var(--safe-left) + 16px);
+  outline: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+  max-width: 640px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.section-label {
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-2);
+  margin: 8px 4px -8px;
+}
+
+/* ---------- Cards ---------- */
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px;
+}
+
+.card--flush { padding: 0; overflow: hidden; }
+
+.card__eyebrow {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-2);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.card__title {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin-top: 4px;
+}
+
+.card__text { color: var(--text-2); font-size: 15px; margin-top: 6px; }
+
+.divider { height: 1px; background: var(--line); margin: 16px 0; border: 0; }
+
+/* ---------- Stats: big bold numbers, small labels ---------- */
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.stat__value {
+  font-family: var(--font-num);
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat__unit { font-size: 15px; font-weight: 600; color: var(--text-2); margin-left: 2px; letter-spacing: 0; }
+
+.stat__label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-2);
+  margin-top: 2px;
+}
+
+.stat--hero .stat__value { font-size: 56px; }
+
+/* ---------- Workout steps ---------- */
+
+.steps { list-style: none; margin: 16px 0 0; padding: 0; }
+
+.step {
+  display: grid;
+  grid-template-columns: 4px 1fr auto;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+
+.step:first-child { border-top: 0; }
+.step__bar { align-self: stretch; border-radius: 2px; background: var(--text-3); }
+.step--work .step__bar { background: var(--accent); }
+.step__name { font-weight: 600; font-size: 15px; }
+.step__meta { font-size: 13px; color: var(--text-2); }
+.step__pace { font-family: var(--font-num); font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* ---------- Badges ---------- */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--surface-2);
+  color: var(--text-2);
+}
+
+.badge--accent { background: var(--accent-soft); color: var(--accent); }
+.badge--good { color: var(--good); }
+
+/* ---------- Buttons: big, thumb friendly ---------- */
+
+.btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 52px;
+  padding: 0 20px;
+  border: 0;
+  border-radius: 14px;
+  font-size: 17px;
+  font-weight: 700;
+  cursor: pointer;
+  background: var(--accent);
+  color: var(--on-accent);
+  transition: transform 80ms ease, background-color 80ms ease;
+  touch-action: manipulation;
+}
+
+.btn:active { transform: scale(0.98); background: var(--accent-press); }
+.btn--secondary { background: var(--surface-2); color: var(--text); }
+.btn--secondary:active { background: var(--line); }
+.btn--ghost { background: transparent; color: var(--accent); min-height: 44px; }
+.btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 16px; }
+
+/* ---------- Lists (settings style) ---------- */
+
+.list { list-style: none; margin: 0; padding: 0; }
+
+.list__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 52px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--line);
+  font-size: 16px;
+}
+
+.list__row:first-child { border-top: 0; }
+.list__value { color: var(--text-2); text-align: right; }
+
+/* ---------- Week strip ---------- */
+
+.week {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  text-align: center;
+}
+
+.day__name { font-size: 12px; font-weight: 600; color: var(--text-2); }
+
+.day__dot {
+  margin: 8px auto 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  background: var(--surface-2);
+  color: var(--text-2);
+}
+
+.day--run .day__dot { background: var(--accent-soft); color: var(--accent); }
+.day--today .day__dot { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ---------- Empty state ---------- */
+
+.empty { text-align: center; padding: 28px 16px; }
+.empty__icon { width: 56px; height: 56px; margin: 0 auto 12px; color: var(--text-3); }
+.empty__title { font-size: 20px; font-weight: 700; }
+.empty__text { color: var(--text-2); font-size: 15px; margin: 6px auto 16px; max-width: 30ch; }
+
+/* ---------- Brand ---------- */
+
+.brand { display: flex; align-items: center; gap: 12px; }
+.brand img { width: 48px; height: 48px; border-radius: 12px; }
+.brand__name { font-size: 22px; font-weight: 800; font-style: italic; letter-spacing: -0.02em; }
+.brand__tag { font-size: 13px; color: var(--text-2); }
+
+/* ---------- Tab bar ---------- */
+
+.tabbar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 20;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  padding: 0 var(--safe-right) var(--safe-bottom) var(--safe-left);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  backdrop-filter: saturate(180%) blur(20px);
+  border-top: 1px solid var(--line);
+}
+
+.tab {
+  height: var(--tabbar-h);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  color: var(--text-3);
+  font-size: 11px;
+  font-weight: 600;
+  touch-action: manipulation;
+}
+
+.tab svg {
+  width: 26px;
+  height: 26px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.tab[aria-current="page"] { color: var(--accent); }
+.tab[aria-current="page"] svg { stroke-width: 2.2; }
+
+/* ---------- Toast ---------- */
+
+.toast {
+  position: fixed;
+  left: 16px;
+  right: 16px;
+  bottom: calc(var(--tabbar-h) + var(--safe-bottom) + 12px);
+  z-index: 30;
+  max-width: 480px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 12px 12px 16px;
+  border-radius: 14px;
+  background: var(--text);
+  color: var(--bg);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.toast button {
+  border: 0;
+  border-radius: 10px;
+  padding: 8px 14px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 700;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; }
+}
