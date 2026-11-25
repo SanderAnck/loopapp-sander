@@ -25,7 +25,7 @@ const SHELL = [
   'js/coach/planner.js',
   'js/coach/adapt.js',
   'js/entry.js',
-  'js/test-seed.js',
+  'js/reset.js',
   'js/coach/hr.js',
   'js/heartrate.js',
   'js/move.js',

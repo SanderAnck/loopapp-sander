@@ -478,10 +478,27 @@ export const views = {
             <li class="list__row"><span>Versie</span><span class="list__value">${esc(self.PACE_VERSION)}</span></li>
           </ul>
         </section>
-        <button class="btn btn--secondary" type="button" id="check-update">Zoek naar update</button>`;
+        <button class="btn btn--secondary" type="button" id="check-update">Zoek naar update</button>
+        <button class="btn btn--ghost" type="button" id="wipe" style="color:var(--bad)">Alles wissen en opnieuw beginnen</button>
+        <div id="wipe-confirm" hidden></div>`;
     },
     mount(root) {
       root.querySelector('#check-update')?.addEventListener('click', () => window.dispatchEvent(new Event('pace:check-update')));
+      root.querySelector('#wipe')?.addEventListener('click', (e) => {
+        e.currentTarget.hidden = true;
+        const box = root.querySelector('#wipe-confirm');
+        box.hidden = false;
+        box.innerHTML = `<section class="card"><div class="note note--very-ambitious"><strong>Alles wissen?</strong>Je doel, schema, lopen, antwoorden en de koppeling met je horloge worden verwijderd. Dit kan niet ongedaan worden. Maak eerst een back-up als je iets wil bewaren.</div>
+          <div class="btn-row"><button class="btn btn--secondary" type="button" id="wipe-no">Annuleren</button><button class="btn" type="button" id="wipe-yes" style="background:var(--bad);border-color:var(--bad)">Ja, alles wissen</button></div></section>`;
+        box.querySelector('#wipe-no').addEventListener('click', () => window.dispatchEvent(new HashChangeEvent('hashchange')));
+        box.querySelector('#wipe-yes').addEventListener('click', async (ev) => {
+          ev.currentTarget.disabled = true;
+          const { wipeEverything } = await import('./reset.js');
+          await wipeEverything();
+          location.hash = '#/vandaag';
+          location.reload();
+        });
+      });
     },
   },
 

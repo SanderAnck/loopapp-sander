@@ -6,7 +6,7 @@ import { loadProfile, analyse } from './profile.js';
 import { showToast } from './ui.js';
 import { loadSyncSettings, syncActivities } from './sync/provider.js';
 import { loadPlan, ensurePlanAndWatch, pushUpcoming } from './plan.js';
-import { seedTestWorkout } from './test-seed.js';
+import { runOneTimeReset } from './reset.js';
 import { loadHr, saveHr, hrZones } from './coach/hr.js';
 import { IntervalsProvider } from './sync/intervals.js';
 import { setZoneContext } from './workout-ui.js';
@@ -132,10 +132,6 @@ async function autoSync() {
   // Keep the plan in step with the profile and the next 14 days on the watch.
   try {
     let changed = await ensurePlanAndWatch(await loadProfile());
-    if (await seedTestWorkout((await loadPlan()).plan)) {
-      changed = true;
-      pushUpcoming().catch((err) => console.warn('Push failed', err));
-    }
     if (await applyFitnessCorrection()) changed = true;
     // Planned workouts that stayed unlogged for 2 days count as missed.
     const data = await loadPlan();
@@ -172,6 +168,7 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') autoSync();
 });
 
+if (await runOneTimeReset()) history.replaceState(null, '', `#/${DEFAULT_ROUTE}`);
 if (!location.hash) history.replaceState(null, '', `#/${DEFAULT_ROUTE}`);
 render().catch((err) => {
   console.error(err);
