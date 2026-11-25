@@ -5,6 +5,7 @@ import { db, requestPersistentStorage } from './db.js';
 import { loadProfile, analyse } from './profile.js';
 import { showToast } from './ui.js';
 import { loadSyncSettings, syncActivities } from './sync/provider.js';
+import { loadPlan, ensurePlanAndWatch } from './plan.js';
 
 const DEFAULT_ROUTE = 'vandaag';
 const viewEl = document.getElementById('view');
@@ -22,9 +23,14 @@ async function render() {
   const route = currentRoute();
   const view = views[route];
 
-  const [profile, sync, runs] = await Promise.all([loadProfile(), loadSyncSettings(), db.getAll('runs')]);
+  const [profile, sync, runs, { plan, workouts }] = await Promise.all([
+    loadProfile(),
+    loadSyncSettings(),
+    db.getAll('runs'),
+    loadPlan(),
+  ]);
   if (id !== renderId) return; // a newer navigation started meanwhile
-  const ctx = { profile, analysis: profile ? analyse(profile) : null, sync, runs };
+  const ctx = { profile, analysis: profile ? analyse(profile) : null, sync, runs, plan, workouts };
 
   titleEl.textContent = view.title;
   document.title = `${view.title} · Pace`;
@@ -92,6 +98,12 @@ async function registerServiceWorker() {
 // Pull new runs in the background when the app opens or returns to the
 // foreground, at most every 15 minutes. Screens refresh when something came in.
 async function autoSync() {
+  // Keep the plan in step with the profile and the next 14 days on the watch.
+  try {
+    if (await ensurePlanAndWatch(await loadProfile())) render();
+  } catch (err) {
+    console.warn('Plan update failed', err);
+  }
   const s = await loadSyncSettings();
   if (s.provider !== 'intervals' || !s.apiKey) return;
   if (s.lastSyncAt && Date.now() - new Date(s.lastSyncAt) < 15 * 60 * 1000) return;

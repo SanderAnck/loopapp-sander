@@ -1,10 +1,18 @@
 // Screen renderers. Each view has a title, the tab it belongs to,
 // html(ctx) returning markup, and an optional mount(root, ctx) for events.
-// ctx = { profile, analysis } (both null until the goal is set).
+// ctx = { profile, analysis, plan, workouts, runs, sync } (profile/analysis/plan null until the goal is set).
 
 import { isIos, isStandalone } from './platform.js';
 import { esc, formatPace, formatDateLong, zonesTable, FEASIBILITY_TEXT } from './ui.js';
-import { goalLabel, levelLabel, formatRaceTime, WEEKDAYS_LONG } from './profile.js';
+import { goalLabel, levelLabel, formatRaceTime, WEEKDAYS_LONG, isoDate } from './profile.js';
+import { workoutCard, workoutRow, dayLabel } from './workout-ui.js';
+import { PHASES } from './coach/planner.js';
+
+const addDays = (iso, n) => {
+  const d = new Date(`${iso}T12:00:00`);
+  d.setDate(d.getDate() + n);
+  return isoDate(d);
+};
 import { setupView } from './setup.js';
 import { connectView } from './connect.js';
 
@@ -40,45 +48,6 @@ function goalCard(profile, analysis) {
     </section>`;
 }
 
-// Example workout, only to show the design until the schedule generator exists.
-const SAMPLE = {
-  type: 'Tempoloop',
-  distanceKm: 6.4,
-  minutes: 42,
-  steps: [
-    { name: 'Opwarming', meta: '10 min rustig', pace: 7 * 60 + 10, work: false },
-    { name: '3 × 6 min drempel', meta: '2 min rustig dribbelen ertussen', pace: 5 * 60 + 55, work: true },
-    { name: 'Cooling down', meta: '8 min rustig', pace: 7 * 60 + 20, work: false },
-  ],
-};
-
-function sampleWorkout() {
-  const steps = SAMPLE.steps
-    .map(
-      (s) => `
-      <li class="step ${s.work ? 'step--work' : ''}">
-        <span class="step__bar"></span>
-        <span><span class="step__name">${esc(s.name)}</span><br><span class="step__meta">${esc(s.meta)}</span></span>
-        <span class="step__pace">${formatPace(s.pace)}<span class="stat__unit">/km</span></span>
-      </li>`
-    )
-    .join('');
-  return `
-    <section class="card">
-      <div class="card__eyebrow">${esc(SAMPLE.type)} <span class="badge">Voorbeeld</span></div>
-      <div class="stats">
-        <div><div class="stat__value">${SAMPLE.distanceKm.toLocaleString('nl-BE')}<span class="stat__unit">km</span></div><div class="stat__label">Afstand</div></div>
-        <div><div class="stat__value">${SAMPLE.minutes}<span class="stat__unit">min</span></div><div class="stat__label">Duur</div></div>
-        <div><div class="stat__value">${formatPace(SAMPLE.steps[1].pace)}</div><div class="stat__label">Doeltempo /km</div></div>
-      </div>
-      <ul class="steps">${steps}</ul>
-      <div class="btn-row">
-        <button class="btn btn--secondary" type="button" data-soon>Overslaan</button>
-        <button class="btn" type="button" data-soon>Loop invoeren</button>
-      </div>
-    </section>`;
-}
-
 function runListRow(r) {
   const day = new Date(`${r.date}T12:00:00`).toLocaleDateString('nl-BE', { weekday: 'short', day: 'numeric', month: 'short' });
   if (!r.distanceM || !r.durationS) {
@@ -88,57 +57,122 @@ function runListRow(r) {
   return `<li class="list__row"><span>${esc(day)}</span><span class="list__value"><strong>${km} km</strong> · ${formatPace(r.durationS / (r.distanceM / 1000))}/km</span></li>`;
 }
 
+const isConnected = (sync) => sync.provider === 'intervals' && Boolean(sync.apiKey);
+const runDates = (runs) => new Set(runs.map((r) => r.date));
+
+function noGoal() {
+  return `
+    <section class="card empty">
+      <h2 class="empty__title">Nog geen doel</h2>
+      <p class="empty__text">Stel je doel en trainingsdagen in, dan maakt Pace je persoonlijke schema.</p>
+      <a class="btn" href="#/doel">Doel instellen</a>
+    </section>`;
+}
+
 export const views = {
   vandaag: {
     title: 'Vandaag',
     tab: 'vandaag',
-    html({ profile, analysis }) {
+    html({ profile, analysis, workouts, runs, sync }) {
       const date = new Date().toLocaleDateString('nl-BE', { weekday: 'long', day: 'numeric', month: 'long' });
-      const goal = profile
-        ? goalCard(profile, analysis)
-        : `
-        <section class="card empty">
-          <h2 class="empty__title">Nog geen doel</h2>
-          <p class="empty__text">Stel je doel en trainingsdagen in, dan maakt Pace je persoonlijke schema.</p>
-          <a class="btn" href="#/doel">Doel instellen</a>
-        </section>`;
+      if (!profile) return `${installHint()}<p class="section-label">${esc(date)}</p>${noGoal()}`;
+      const today = isoDate(new Date());
+      const done = runDates(runs);
+      const todays = workouts.filter((w) => w.date === today);
+      const next = workouts.find((w) => w.date > today);
+      let main;
+      if (todays.length) {
+        main = todays.map((w) => workoutCard(w, { done: done.has(w.date), connected: isConnected(sync), heading: 'Training van vandaag' })).join('');
+      } else {
+        main = `
+          <section class="card">
+            <div class="card__eyebrow">Rustdag</div>
+            <h2 class="card__title">Vandaag geen training</h2>
+            <p class="card__text">Rust hoort bij het schema: daar word je sterker van.${next ? ` Volgende training: <strong>${esc(dayLabel(next.date).toLowerCase())}</strong>.` : ''}</p>
+          </section>
+          ${next ? workoutCard(next, { done: false, connected: isConnected(sync), heading: `Volgende · ${dayLabel(next.date)}` }) : ''}`;
+      }
+      const watchHint =
+        !isConnected(sync)
+          ? `<a class="btn btn--secondary" href="#/koppeling">Trainingen naar je horloge sturen</a>`
+          : '';
       return `
         ${installHint()}
         <p class="section-label">${esc(date)}</p>
-        ${goal}
-        ${sampleWorkout()}`;
+        ${main}
+        ${watchHint}
+        ${goalCard(profile, analysis)}`;
     },
   },
 
   schema: {
     title: 'Schema',
     tab: 'schema',
-    html() {
+    html({ profile, plan, workouts, runs }) {
+      if (!profile || !plan) return noGoal();
       const names = ['ma', 'di', 'wo', 'do', 'vr', 'za', 'zo'];
-      const today = new Date();
-      const monday = new Date(today);
-      monday.setDate(today.getDate() - ((today.getDay() + 6) % 7));
-      const days = names
+      const todayDate = new Date();
+      const today = isoDate(todayDate);
+      const done = runDates(runs);
+      const monday = new Date(todayDate);
+      monday.setDate(todayDate.getDate() - ((todayDate.getDay() + 6) % 7));
+      const byDate = new Map(workouts.map((w) => [w.date, w]));
+      const strip = names
         .map((n, i) => {
           const d = new Date(monday);
           d.setDate(monday.getDate() + i);
-          const isToday = d.toDateString() === today.toDateString();
-          const isRun = i === 1 || i === 5; // example: 2 run days
-          return `<div class="day ${isRun ? 'day--run' : ''} ${isToday ? 'day--today' : ''}">
-              <div class="day__name">${n}</div><div class="day__dot">${d.getDate()}</div></div>`;
+          const di = isoDate(d);
+          const w = byDate.get(di);
+          const cls = [w ? 'day--run' : '', di === today ? 'day--today' : '', done.has(di) ? 'day--done' : ''].join(' ');
+          const inner = `<div class="day__name">${n}</div><div class="day__dot">${done.has(di) ? '✓' : d.getDate()}</div>`;
+          return w ? `<a class="day ${cls}" href="#/training/${esc(w.id)}">${inner}</a>` : `<div class="day ${cls}">${inner}</div>`;
         })
         .join('');
+
+      const current = plan.weeks.find((wk) => wk.start <= today && today < addDays(wk.start, 7)) || plan.weeks[0];
+      const phase = PHASES[current.phase];
+      const phaseBar = plan.weeks
+        .map((wk) => `<span class="phase-seg phase-seg--${wk.phase}${wk.week === current.week ? ' is-now' : ''}" title="Week ${wk.week}"></span>`)
+        .join('');
+
+      const weekCards = plan.weeks
+        .filter((wk) => addDays(wk.start, 7) > today)
+        .map((wk) => {
+          const ws = workouts.filter((w) => w.week === wk.week && w.date >= wk.start && w.date < addDays(wk.start, 7));
+          const startText = new Date(`${wk.start}T12:00:00`).toLocaleDateString('nl-BE', { day: 'numeric', month: 'short' });
+          return `
+            <p class="section-label">Week ${wk.week} · ${esc(PHASES[wk.phase].label)}${wk.recovery ? ' · herstelweek' : ''}</p>
+            <section class="card card--flush">
+              <div class="list__row" style="border-top:0"><span class="field__hint">vanaf ${esc(startText)}</span><span class="list__value">${wk.plannedKm.toLocaleString('nl-BE')} km gepland</span></div>
+              <ul class="list" style="border-top:1px solid var(--line)">${ws.map((w) => workoutRow(w, done.has(w.date))).join('')}</ul>
+            </section>`;
+        })
+        .join('');
+
       return `
         <p class="section-label">Deze week</p>
         <section class="card">
-          <div class="card__eyebrow">Weekoverzicht <span class="badge">Voorbeeld</span></div>
-          <div class="week" style="margin-top:12px">${days}</div>
+          <div class="card__eyebrow">Week ${current.week} van ${plan.weeks.length} <span class="badge badge--accent">${esc(phase.label)}${current.recovery ? ' · herstel' : ''}</span></div>
+          <div class="week" style="margin-top:12px">${strip}</div>
+          <div class="phase-bar">${phaseBar}</div>
+          <p class="card__text">${esc(current.recovery ? 'Herstelweek: minder volume, zodat je lichaam de training van de vorige weken kan verwerken.' : phase.text)}</p>
         </section>
-        <section class="card empty">
-          ${ICON_CALENDAR}
-          <h2 class="empty__title">Je schema verschijnt hier</h2>
-          <p class="empty__text">Per week zie je straks gepland tegenover uitgevoerd, met de fase waarin je zit.</p>
-        </section>`;
+        ${weekCards}`;
+    },
+  },
+
+  training: {
+    title: 'Training',
+    tab: 'schema',
+    html({ workouts, runs, sync }) {
+      const id = location.hash.split('/')[2];
+      const w = workouts.find((x) => x.id === id);
+      if (!w) return `<section class="card empty"><h2 class="empty__title">Training niet gevonden</h2><a class="btn" href="#/schema">Naar je schema</a></section>`;
+      const done = runDates(runs).has(w.date);
+      return `
+        <a class="btn btn--ghost" href="#/schema" style="justify-content:flex-start;padding:0 4px;width:auto">‹ Schema</a>
+        <p class="section-label">${esc(dayLabel(w.date))}</p>
+        ${workoutCard(w, { done, connected: isConnected(sync) })}`;
     },
   },
 

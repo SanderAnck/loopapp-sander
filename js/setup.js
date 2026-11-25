@@ -14,6 +14,7 @@ import {
   formatRaceTime,
   isoDate,
 } from './profile.js';
+import { regeneratePlan, pushUpcoming } from './plan.js';
 
 let draft = null;
 
@@ -222,9 +223,20 @@ export const setupView = {
           showToast(errors[0]);
           return;
         }
-        await saveProfile(draft);
-        showToast('Doel opgeslagen');
-        location.hash = '#/profiel';
+        const btn = e.target.closest('#save');
+        btn.disabled = true;
+        btn.textContent = 'Schema maken…';
+        const saved = await saveProfile(draft);
+        const { stale } = await regeneratePlan(saved);
+        let message = 'Je schema staat klaar';
+        try {
+          const r = await pushUpcoming({ stale });
+          if (!r.skipped) message = 'Je schema staat klaar en gaat naar je horloge';
+        } catch (err) {
+          message = `Schema klaar, maar niet verstuurd: ${err.message}`;
+        }
+        showToast(message);
+        location.hash = '#/schema';
       }
     });
 
