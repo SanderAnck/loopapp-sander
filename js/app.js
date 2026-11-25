@@ -61,39 +61,56 @@ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () 
 });
 window.addEventListener('hashchange', render);
 
-// Service worker: offline support, plus a toast when a new version is ready.
+// Service worker: offline support and automatic updates.
+// A new version installs in the background, activates itself, and the
+// page reloads onto it (except on the setup form, to keep unsaved input).
+let registration = null;
+
 async function registerServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
-  const reg = await navigator.serviceWorker.register('sw.js');
-
-  const offerUpdate = (worker) =>
-    showToast('Nieuwe versie van Pace', {
-      label: 'Bijwerken',
-      onClick: () => worker.postMessage('skipWaiting'),
-    });
-
-  if (reg.waiting && navigator.serviceWorker.controller) offerUpdate(reg.waiting);
-  reg.addEventListener('updatefound', () => {
-    const worker = reg.installing;
-    worker.addEventListener('statechange', () => {
-      if (worker.state === 'installed' && navigator.serviceWorker.controller) offerUpdate(worker);
-    });
-  });
-
-  // Only reload when an existing version was replaced, not on the very first install.
   const hadController = Boolean(navigator.serviceWorker.controller);
+  registration = await navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' });
+
+  // Older versions waited for a tap on "Bijwerken": activate those right away.
+  if (registration.waiting) registration.waiting.postMessage('skipWaiting');
+
   let reloading = false;
   navigator.serviceWorker.addEventListener('controllerchange', () => {
     if (!hadController || reloading) return;
+    if (currentRoute() === 'doel') {
+      showToast('Nieuwe versie van Pace klaar', { label: 'Herladen', onClick: () => location.reload() });
+      return;
+    }
     reloading = true;
     location.reload();
   });
 
   // Check for updates whenever the app comes back to the foreground.
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') reg.update().catch(() => {});
+    if (document.visibilityState === 'visible') registration.update().catch(() => {});
   });
+  registration.update().catch(() => {});
 }
+
+/** Manual check from the Profiel screen. */
+export async function checkForUpdate() {
+  if (!registration) return showToast('Updates werken alleen in de geïnstalleerde app.');
+  showToast('Zoeken naar een nieuwe versie…');
+  try {
+    await registration.update();
+    const worker = registration.installing || registration.waiting;
+    if (worker) {
+      worker.postMessage('skipWaiting');
+      showToast('Nieuwe versie gevonden, Pace herlaadt…');
+    } else {
+      showToast(`Je hebt de nieuwste versie (${self.PACE_VERSION}).`);
+    }
+  } catch {
+    showToast('Geen verbinding. Probeer het straks opnieuw.');
+  }
+}
+
+window.addEventListener('pace:check-update', checkForUpdate);
 
 // Pull new runs in the background when the app opens or returns to the
 // foreground, at most every 15 minutes. Screens refresh when something came in.

@@ -299,7 +299,11 @@ export const views = {
             <li class="list__row"><span>Gegevens</span><span class="list__value">Alleen op dit toestel</span></li>
             <li class="list__row"><span>Versie</span><span class="list__value">${esc(self.PACE_VERSION)}</span></li>
           </ul>
-        </section>`;
+        </section>
+        <button class="btn btn--secondary" type="button" id="check-update">Zoek naar update</button>`;
+    },
+    mount(root) {
+      root.querySelector('#check-update')?.addEventListener('click', () => window.dispatchEvent(new Event('pace:check-update')));
     },
   },
 
