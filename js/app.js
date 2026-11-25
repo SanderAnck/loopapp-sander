@@ -1,9 +1,10 @@
 // App shell: hash router, tab bar state, service worker and update toast.
 
 import { views } from './views.js';
-import { requestPersistentStorage } from './db.js';
+import { db, requestPersistentStorage } from './db.js';
 import { loadProfile, analyse } from './profile.js';
 import { showToast } from './ui.js';
+import { loadSyncSettings, syncActivities } from './sync/provider.js';
 
 const DEFAULT_ROUTE = 'vandaag';
 const viewEl = document.getElementById('view');
@@ -21,9 +22,9 @@ async function render() {
   const route = currentRoute();
   const view = views[route];
 
-  const profile = await loadProfile();
+  const [profile, sync, runs] = await Promise.all([loadProfile(), loadSyncSettings(), db.getAll('runs')]);
   if (id !== renderId) return; // a newer navigation started meanwhile
-  const ctx = { profile, analysis: profile ? analyse(profile) : null };
+  const ctx = { profile, analysis: profile ? analyse(profile) : null, sync, runs };
 
   titleEl.textContent = view.title;
   document.title = `${view.title} · Pace`;
@@ -33,7 +34,7 @@ async function render() {
   page.className = 'page';
   page.innerHTML = view.html(ctx);
   viewEl.replaceChildren(page);
-  if (typeof view.mount === 'function') view.mount(page, ctx);
+  if (typeof view.mount === 'function') await view.mount(page, ctx);
 
   for (const tab of document.querySelectorAll('.tab')) {
     if (tab.dataset.route === view.tab) tab.setAttribute('aria-current', 'page');
@@ -88,10 +89,29 @@ async function registerServiceWorker() {
   });
 }
 
+// Pull new runs in the background when the app opens or returns to the
+// foreground, at most every 15 minutes. Screens refresh when something came in.
+async function autoSync() {
+  const s = await loadSyncSettings();
+  if (s.provider !== 'intervals' || !s.apiKey) return;
+  if (s.lastSyncAt && Date.now() - new Date(s.lastSyncAt) < 15 * 60 * 1000) return;
+  try {
+    const n = await syncActivities();
+    if (n && currentRoute() !== 'doel') render();
+  } catch (err) {
+    console.warn('Sync failed', err);
+  }
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') autoSync();
+});
+
 if (!location.hash) history.replaceState(null, '', `#/${DEFAULT_ROUTE}`);
 render().catch((err) => {
   console.error(err);
   viewEl.textContent = 'Er ging iets mis bij het laden van Pace.';
 });
+autoSync();
 registerServiceWorker().catch((err) => console.warn('Service worker failed', err));
 requestPersistentStorage();

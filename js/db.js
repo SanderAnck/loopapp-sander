@@ -60,6 +60,8 @@ export const db = {
   async exportAll() {
     const data = {};
     for (const name of Object.keys(STORES)) data[name] = await db.getAll(name);
+    // The Intervals.icu API key stays on this device only.
+    data.profile = data.profile.map(({ apiKey, ...rest }) => rest);
     return { app: 'pace', version: self.PACE_VERSION, exportedAt: new Date().toISOString(), data };
   },
 
@@ -68,10 +70,12 @@ export const db = {
     if (!backup || backup.app !== 'pace' || typeof backup.data !== 'object') {
       throw new Error('Dit is geen geldig Pace-back-upbestand.');
     }
+    const sync = await db.get('profile', 'sync'); // keep the local API key
     for (const name of Object.keys(STORES)) {
       await db.clear(name);
       for (const row of backup.data[name] || []) await db.put(name, row);
     }
+    if (sync) await db.put('profile', sync);
   },
 };
 

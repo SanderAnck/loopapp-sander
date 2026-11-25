@@ -6,6 +6,7 @@ import { isIos, isStandalone } from './platform.js';
 import { esc, formatPace, formatDateLong, zonesTable, FEASIBILITY_TEXT } from './ui.js';
 import { goalLabel, levelLabel, formatRaceTime, WEEKDAYS_LONG } from './profile.js';
 import { setupView } from './setup.js';
+import { connectView } from './connect.js';
 
 const ICON_CALENDAR =
   '<svg class="empty__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>';
@@ -78,6 +79,15 @@ function sampleWorkout() {
     </section>`;
 }
 
+function runListRow(r) {
+  const day = new Date(`${r.date}T12:00:00`).toLocaleDateString('nl-BE', { weekday: 'short', day: 'numeric', month: 'short' });
+  if (!r.distanceM || !r.durationS) {
+    return `<li class="list__row"><span>${esc(day)}</span><span class="list__value">Details ontbreken</span></li>`;
+  }
+  const km = (r.distanceM / 1000).toLocaleString('nl-BE', { maximumFractionDigits: 2 });
+  return `<li class="list__row"><span>${esc(day)}</span><span class="list__value"><strong>${km} km</strong> · ${formatPace(r.durationS / (r.distanceM / 1000))}/km</span></li>`;
+}
+
 export const views = {
   vandaag: {
     title: 'Vandaag',
@@ -135,29 +145,41 @@ export const views = {
   voortgang: {
     title: 'Voortgang',
     tab: 'voortgang',
-    html({ analysis }) {
+    html({ analysis, runs }) {
       const predicted = analysis?.predictedNowS ? formatRaceTime(analysis.predictedNowS) : '–';
+      const monday = new Date();
+      monday.setHours(0, 0, 0, 0);
+      monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+      const weekKm = runs
+        .filter((r) => r.distanceM && new Date(`${r.date}T12:00:00`) >= monday)
+        .reduce((sum, r) => sum + r.distanceM / 1000, 0);
+      const weekKmText = runs.length ? weekKm.toLocaleString('nl-BE', { maximumFractionDigits: 1 }) : '–';
       return `
         <section class="card">
           <div class="card__eyebrow">Richting je doel</div>
           <div class="stats">
             <div><div class="stat__value">${predicted}</div><div class="stat__label">Geschatte eindtijd</div></div>
-            <div><div class="stat__value">–</div><div class="stat__label">Km deze week</div></div>
+            <div><div class="stat__value">${weekKmText}</div><div class="stat__label">Km deze week</div></div>
             <div><div class="stat__value">–</div><div class="stat__label">Consistentie</div></div>
           </div>
         </section>
-        <section class="card empty">
+        ${runs.length ? '' : `<section class="card empty">
           ${ICON_CHART}
           <h2 class="empty__title">Nog geen lopen</h2>
-          <p class="empty__text">Na je eerste ingevoerde loop zie je hier je volume en geschatte eindtijd.</p>
-        </section>`;
+          <p class="empty__text">Na je eerste loop zie je hier je volume en geschatte eindtijd.</p>
+        </section>`}
+        ${runs.length ? `<p class="section-label">Laatste lopen</p><section class="card card--flush"><ul class="list">${[...runs]
+          .sort((a, b) => (a.date < b.date ? 1 : -1))
+          .slice(0, 5)
+          .map(runListRow)
+          .join('')}</ul></section>` : ''}`;
     },
   },
 
   profiel: {
     title: 'Profiel',
     tab: 'profiel',
-    html({ profile, analysis }) {
+    html({ profile, analysis, sync }) {
       const mode = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'Donker' : 'Licht';
       let goalSection;
       if (profile) {
@@ -206,6 +228,13 @@ export const views = {
         </section>
         <p class="section-label">Doel</p>
         ${goalSection}
+        <p class="section-label">Horloge</p>
+        <section class="card card--flush">
+          <ul class="list">
+            <li class="list__row"><a href="#/koppeling" style="color:inherit;display:flex;justify-content:space-between;width:100%">
+              <span>Garmin Venu 3</span><span class="list__value">${sync.provider === 'intervals' && sync.apiKey ? 'Verbonden ›' : 'Koppelen ›'}</span></a></li>
+          </ul>
+        </section>
         <p class="section-label">App</p>
         <section class="card card--flush">
           <ul class="list">
@@ -219,4 +248,5 @@ export const views = {
   },
 
   doel: setupView,
+  koppeling: connectView,
 };
