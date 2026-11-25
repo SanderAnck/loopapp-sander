@@ -75,7 +75,11 @@ export async function pushUpcoming({ stale = [], from = null, to = null } = {}) 
   const upcoming = workouts.filter(
     (w) => w.status === 'planned' && !w.test && w.date >= today && ((w.date >= start && w.date <= end) || w.pushedAt)
   );
-  if (stale.length) await provider.deleteWorkouts(stale);
+  // Removed workouts whose deletion from the watch failed earlier.
+  const pending = (await db.getAll('workouts')).filter((w) => w.status === 'removed' && w.removed?.pendingDelete);
+  const toDelete = [...new Set([...stale, ...pending.map((w) => w.id)])];
+  if (toDelete.length) await provider.deleteWorkouts(toDelete);
+  for (const w of pending) await db.put('workouts', { ...w, removed: { ...w.removed, pendingDelete: false } });
   const result = await provider.pushWorkouts(upcoming);
   const now = new Date().toISOString();
   for (const w of upcoming) await db.put('workouts', { ...w, pushedAt: now });

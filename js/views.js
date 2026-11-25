@@ -406,7 +406,9 @@ export const views = {
               const provider = await activeProvider();
               if (provider.canPushWorkouts && before.pushedAt) await provider.deleteWorkouts([w.id]);
             } catch {
-              /* the watch keeps it for now; it is not pushed again */
+              // Offline or Intervals.icu unreachable: retried on the next sync.
+              const cur = await db.get('workouts', w.id);
+              await db.put('workouts', { ...cur, removed: { ...cur.removed, pendingDelete: true } });
             }
             location.hash = '#/schema';
             showToast('Training verwijderd.', {
