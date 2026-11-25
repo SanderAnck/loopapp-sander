@@ -307,7 +307,9 @@ export const views = {
           <div class="phase-bar">${phaseBar}</div>
           <p class="card__text">${esc(current.recovery ? 'Herstelweek: minder volume, zodat je lichaam de training van de vorige weken kan verwerken.' : phase.text)}</p>
         </section>
-        ${connected ? '<button class="btn btn--secondary" type="button" id="push-all">⌚ Volledig schema naar horloge</button>' : ''}
+        ${connected
+          ? '<button class="btn btn--secondary" type="button" id="push-all">⌚ Volledig schema naar horloge</button>'
+          : '<a class="btn btn--secondary" href="#/koppeling">⌚ Koppel je horloge om trainingen te versturen</a>'}
         ${weekCards}`;
     },
     mount(root, { plan }) {
